@@ -10,7 +10,9 @@
     "seed": "node scripts/seed.js"
   },
   "dependencies": {
+    "arabic-reshaper": "^1.1.0",
     "bcryptjs": "^2.4.3",
+    "bidi-js": "^1.0.3",
     "bwip-js": "^4.5.1",
     "cookie-parser": "^1.4.6",
     "dayjs": "^1.11.10",

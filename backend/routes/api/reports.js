@@ -1,6 +1,7 @@
 const express = require('express');
 const { query, getOne } = require('../../config/db');
 const { sendExcel, startPDF, pdfHeader, pdfTable } = require('../../config/export');
+const i18n = require('../../config/i18n');
 const router = express.Router();
 
 function money(n, currency = 'USD') {
@@ -12,6 +13,16 @@ function fmtDate(d) { if (!d) return ''; const dt = d instanceof Date ? d : new 
 async function getSetting(key, fallback) {
   const r = await getOne('SELECT setting_value FROM settings WHERE setting_key=?', [key]);
   return r ? r.setting_value : fallback;
+}
+// Pick lang for exports: ?lang=en|ar|ku (default en)
+function pickLang(req) {
+  const l = (req.query.lang || req.user?.language || 'en').toLowerCase();
+  return ['en', 'ar', 'ku'].includes(l) ? l : 'en';
+}
+function t(lang, key) { return i18n.get(lang, key); }
+function pickName(item, lang) {
+  if (!item) return '';
+  return item['name_' + lang] || item.name_en || item.name || '';
 }
 
 // Sales Report (grouped + breakdown)

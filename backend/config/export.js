@@ -1,18 +1,67 @@
-// Export helpers: Excel (exceljs) + PDF (pdfkit)
+// Export helpers: Excel (exceljs) + PDF (pdfkit) with Arabic/Kurdish RTL support
+const path = require('path');
 const ExcelJS = require('exceljs');
 const PDFDocument = require('pdfkit');
+const ArabicReshaper = require('arabic-reshaper');
+const bidiFactory = require('bidi-js');
+const bidi = bidiFactory();
 
+const FONTS_DIR = path.join(__dirname, '..', 'public', 'fonts');
+const FONT_LATIN = path.join(FONTS_DIR, 'NotoSans-Regular.ttf');
+const FONT_LATIN_BOLD = path.join(FONTS_DIR, 'NotoSans-Bold.ttf');
+const FONT_ARABIC = path.join(FONTS_DIR, 'NotoSansArabic-Regular.ttf');
+const FONT_ARABIC_BOLD = path.join(FONTS_DIR, 'NotoSansArabic-Bold.ttf');
+
+// Arabic Unicode range (0600-06FF) + Arabic Presentation Forms (FB50-FDFF, FE70-FEFF) + Kurdish (Sorani uses Arabic block + 0750-077F)
+const RTL_RE = /[\u0590-\u05FF\u0600-\u06FF\u0700-\u074F\u0750-\u077F\u08A0-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]/;
+
+function hasRTL(s) {
+  return typeof s === 'string' && RTL_RE.test(s);
+}
+
+// Apply bidi + reshape Arabic so PDFKit renders the correct contextual glyph forms
+function shapeRTL(text) {
+  if (text == null) return '';
+  const s = String(text);
+  if (!hasRTL(s)) return s;
+  // 1) Apply Unicode Bidirectional Algorithm to get visual ordering
+  const embedded = bidi.getEmbeddingLevels(s, 'rtl');
+  const reordered = bidi.getReorderedString(s, embedded);
+  // 2) Reshape Arabic letters to their contextual joined forms
+  try {
+    return ArabicReshaper.convertArabic(reordered);
+  } catch (e) {
+    return reordered;
+  }
+}
+
+// Register fonts on a PDFKit document instance
+function registerFonts(doc) {
+  doc.registerFont('latin', FONT_LATIN);
+  doc.registerFont('latin-bold', FONT_LATIN_BOLD);
+  doc.registerFont('arabic', FONT_ARABIC);
+  doc.registerFont('arabic-bold', FONT_ARABIC_BOLD);
+}
+
+// Pick the appropriate font name based on whether text contains RTL chars
+function pickFont(text, bold = false) {
+  if (hasRTL(text)) return bold ? 'arabic-bold' : 'arabic';
+  return bold ? 'latin-bold' : 'latin';
+}
+
+// ============== EXCEL ==============
 async function sendExcel(res, filename, sheetName, columns, rows, opts = {}) {
   const wb = new ExcelJS.Workbook();
   wb.creator = 'Emergent POS';
   wb.created = new Date();
   const ws = wb.addWorksheet(sheetName || 'Report');
+  ws.views = [{ rightToLeft: !!opts.rtl }];
 
   if (opts.title) {
     ws.mergeCells(1, 1, 1, columns.length);
     const c = ws.getCell(1, 1);
     c.value = opts.title;
-    c.font = { size: 16, bold: true, color: { argb: 'FF0D9488' } };
+    c.font = { name: 'Arial', size: 16, bold: true, color: { argb: 'FF0D9488' } };
     c.alignment = { horizontal: 'center' };
     ws.getRow(1).height = 26;
   }
@@ -21,19 +70,15 @@ async function sendExcel(res, filename, sheetName, columns, rows, opts = {}) {
     ws.mergeCells(sr, 1, sr, columns.length);
     const c = ws.getCell(sr, 1);
     c.value = opts.subtitle;
-    c.font = { size: 11, italic: true, color: { argb: 'FF64748B' } };
+    c.font = { name: 'Arial', size: 11, italic: true, color: { argb: 'FF64748B' } };
     c.alignment = { horizontal: 'center' };
   }
   const headerRowIdx = (opts.title ? 1 : 0) + (opts.subtitle ? 1 : 0) + 1;
   ws.columns = columns.map(col => ({
-    header: col.header,
-    key: col.key,
-    width: col.width || 18,
+    header: col.header, key: col.key, width: col.width || 18,
     style: col.numFmt ? { numFmt: col.numFmt } : undefined,
   }));
-  // exceljs columns sets header on row 1; if we used merged title rows, move headers
   if (opts.title || opts.subtitle) {
-    // Remove the auto header row added by columns and re-add at correct row
     ws.spliceRows(1, 1);
     const hRow = ws.getRow(headerRowIdx);
     columns.forEach((col, i) => { hRow.getCell(i + 1).value = col.header; });
@@ -57,7 +102,6 @@ async function sendExcel(res, filename, sheetName, columns, rows, opts = {}) {
       if (col && col.align) c.alignment = { horizontal: col.align };
     });
   }
-  // Totals row
   if (opts.totals) {
     const tr = ws.addRow(opts.totals);
     tr.eachCell((c) => {
@@ -73,29 +117,45 @@ async function sendExcel(res, filename, sheetName, columns, rows, opts = {}) {
   res.end();
 }
 
+// ============== PDF ==============
 function startPDF(res, filename, opts = {}) {
   const doc = new PDFDocument({ size: 'A4', margin: 40, info: { Title: opts.title || filename } });
+  registerFonts(doc);
+  doc.font('latin'); // default
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', `attachment; filename="${filename}.pdf"`);
   doc.pipe(res);
+  doc._isRTL = !!opts.rtl;
   return doc;
 }
 
+// Smart text writer: auto-picks font + reshapes RTL if needed
+function pdfText(doc, text, x, y, options = {}) {
+  const s = text == null ? '' : String(text);
+  const bold = !!options.bold;
+  doc.font(pickFont(s, bold));
+  const rendered = hasRTL(s) ? shapeRTL(s) : s;
+  if (x != null && y != null) return doc.text(rendered, x, y, options);
+  return doc.text(rendered, options);
+}
+
 function pdfHeader(doc, opts) {
-  // Branding header bar
   const margin = 40;
   const w = doc.page.width - margin * 2;
   doc.rect(margin, margin, w, 50).fill('#0d9488');
-  doc.fillColor('white').fontSize(18).font('Helvetica-Bold').text(opts.companyName || 'Emergent POS', margin + 16, margin + 14, { width: w - 32 });
-  doc.fontSize(10).font('Helvetica').text(opts.subtitle || '', margin + 16, margin + 34, { width: w - 32 });
+  doc.fillColor('white').fontSize(18);
+  pdfText(doc, opts.companyName || 'Emergent POS', margin + 16, margin + 14, { width: w - 32, bold: true, align: doc._isRTL ? 'right' : 'left' });
+  doc.fontSize(10);
+  pdfText(doc, opts.subtitle || '', margin + 16, margin + 34, { width: w - 32, align: doc._isRTL ? 'right' : 'left' });
   doc.moveDown(2);
   doc.fillColor('#0f172a');
-  doc.fontSize(16).font('Helvetica-Bold').text(opts.title || 'Report', margin, margin + 64);
+  doc.fontSize(16);
+  pdfText(doc, opts.title || 'Report', margin, margin + 64, { bold: true, align: doc._isRTL ? 'right' : 'left', width: w });
   if (opts.range) {
-    doc.fontSize(10).font('Helvetica').fillColor('#64748b').text(opts.range, margin, margin + 84);
+    doc.fontSize(10).fillColor('#64748b');
+    pdfText(doc, opts.range, margin, margin + 84, { align: doc._isRTL ? 'right' : 'left', width: w });
   }
   doc.fillColor('#0f172a');
-  doc.moveDown(2);
   doc.y = margin + 110;
 }
 
@@ -107,14 +167,16 @@ function pdfTable(doc, columns, rows, opts = {}) {
 
   // Header row
   doc.rect(margin, y, pageWidth, 22).fill('#0f172a');
-  doc.fillColor('white').fontSize(9).font('Helvetica-Bold');
+  doc.fillColor('white').fontSize(9);
   let x = margin + 6;
   columns.forEach((c, i) => {
-    doc.text(c.header, x, y + 7, { width: colWidths[i] - 12, ellipsis: true, align: c.align || 'left' });
+    pdfText(doc, c.header, x, y + 7, {
+      width: colWidths[i] - 12, ellipsis: true, align: c.align || (doc._isRTL ? 'right' : 'left'), bold: true,
+    });
     x += colWidths[i];
   });
   y += 22;
-  doc.fillColor('#0f172a').font('Helvetica').fontSize(9);
+  doc.fillColor('#0f172a').fontSize(9);
 
   for (const r of rows) {
     if (y > doc.page.height - 60) {
@@ -125,7 +187,9 @@ function pdfTable(doc, columns, rows, opts = {}) {
     x = margin + 6;
     columns.forEach((c, i) => {
       const v = r[c.key];
-      doc.text(v == null ? '' : String(v), x, y + 5, { width: colWidths[i] - 12, ellipsis: true, align: c.align || 'left' });
+      pdfText(doc, v == null ? '' : String(v), x, y + 5, {
+        width: colWidths[i] - 12, ellipsis: true, align: c.align || (doc._isRTL ? 'right' : 'left'),
+      });
       x += colWidths[i];
     });
     y += 18;
@@ -135,11 +199,13 @@ function pdfTable(doc, columns, rows, opts = {}) {
   if (opts.totals) {
     if (doc.y > doc.page.height - 50) doc.addPage();
     doc.rect(margin, doc.y, pageWidth, 24).fillAndStroke('#f6f8fb', '#0d9488');
-    doc.fillColor('#0f172a').font('Helvetica-Bold').fontSize(10);
+    doc.fillColor('#0f172a').fontSize(10);
     x = margin + 6;
     columns.forEach((c, i) => {
       const v = opts.totals[c.key];
-      doc.text(v == null ? '' : String(v), x, doc.y + 8, { width: colWidths[i] - 12, ellipsis: true, align: c.align || 'left' });
+      pdfText(doc, v == null ? '' : String(v), x, doc.y + 8, {
+        width: colWidths[i] - 12, ellipsis: true, align: c.align || (doc._isRTL ? 'right' : 'left'), bold: true,
+      });
       x += colWidths[i];
     });
     doc.y += 30;
@@ -147,9 +213,8 @@ function pdfTable(doc, columns, rows, opts = {}) {
 }
 
 function pdfFooter(doc) {
-  const range = doc.bufferedPageRange ? doc.bufferedPageRange() : null;
-  // Add page numbers via doc.on?
-  doc.fontSize(8).fillColor('#94a3b8').text(`Generated: ${new Date().toLocaleString()}`, 40, doc.page.height - 30, { width: doc.page.width - 80, align: 'center' });
+  doc.font('latin').fontSize(8).fillColor('#94a3b8')
+    .text(`Generated: ${new Date().toLocaleString()}`, 40, doc.page.height - 30, { width: doc.page.width - 80, align: 'center' });
 }
 
-module.exports = { sendExcel, startPDF, pdfHeader, pdfTable, pdfFooter };
+module.exports = { sendExcel, startPDF, pdfHeader, pdfTable, pdfFooter, pdfText, hasRTL, shapeRTL, registerFonts, pickFont };
