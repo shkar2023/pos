@@ -59,7 +59,11 @@ async function loadAll() {
     document.getElementById('r_net').textContent = fmt.money(pl.data.net_profit);
 
     // Daily revenue chart
-    const labels = s.data.daily.map(d => d.day && String(d.day).slice(5)).reverse();
+    const labels = s.data.daily.map(d => {
+      const dt = d.day ? new Date(d.day) : null;
+      if (!dt || isNaN(dt.getTime())) return '';
+      return String(dt.getMonth()+1).padStart(2,'0') + '/' + String(dt.getDate()).padStart(2,'0');
+    }).reverse();
     const rev = s.data.daily.map(d => parseFloat(d.revenue)).reverse();
     if (revChart) revChart.destroy();
     revChart = new Chart(document.getElementById('rev_chart'), {
