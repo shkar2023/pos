@@ -1,0 +1,198 @@
+<div class="page-header">
+  <div>
+    <h1 class="page-title">
+      <i class="ti ti-layout-dashboard"></i>
+      <div>
+        <%= t('dashboard.title') %>
+        <div class="page-subtitle"><%= t('dashboard.welcome') %>, <%= currentUser.name %></div>
+      </div>
+    </h1>
+  </div>
+  <div class="page-actions">
+    <a href="/pos" class="btn btn-primary" data-testid="dash-new-sale"><i class="ti ti-plus"></i><%= t('dashboard.new_sale') %></a>
+    <a href="/reports" class="btn"><i class="ti ti-chart-bar"></i><%= t('dashboard.view_reports') %></a>
+  </div>
+</div>
+
+<div class="stats-grid">
+  <div class="stat-card primary" data-testid="stat-today-sales">
+    <div class="stat-icon"><i class="ti ti-trending-up"></i></div>
+    <div class="stat-label"><%= t('dashboard.todays_sales') %></div>
+    <div class="stat-value" id="stat-today-sales">—</div>
+    <div class="stat-trend" style="color: var(--success)"><i class="ti ti-arrow-up-right"></i> <span id="stat-today-orders">0</span> <%= t('dashboard.todays_orders') %></div>
+  </div>
+  <div class="stat-card accent" data-testid="stat-week-sales">
+    <div class="stat-icon"><i class="ti ti-cash"></i></div>
+    <div class="stat-label">7-Day Revenue</div>
+    <div class="stat-value" id="stat-week-sales">—</div>
+    <div class="stat-trend" style="color: var(--text-tertiary)"><i class="ti ti-calendar"></i> <span id="stat-week-orders">0</span> orders</div>
+  </div>
+  <div class="stat-card info" data-testid="stat-products">
+    <div class="stat-icon"><i class="ti ti-package"></i></div>
+    <div class="stat-label"><%= t('dashboard.total_products') %></div>
+    <div class="stat-value" id="stat-products">—</div>
+    <div class="stat-trend" style="color: var(--text-tertiary)"><i class="ti ti-users"></i> <span id="stat-customers">0</span> customers</div>
+  </div>
+  <div class="stat-card warning" data-testid="stat-low-stock">
+    <div class="stat-icon"><i class="ti ti-alert-triangle"></i></div>
+    <div class="stat-label"><%= t('dashboard.low_stock') %></div>
+    <div class="stat-value" id="stat-low-stock">—</div>
+    <div class="stat-trend" style="color: var(--warning)"><i class="ti ti-arrow-right"></i> <a href="/inventory?low=1">Review</a></div>
+  </div>
+</div>
+
+<div class="dashboard-grid">
+  <div class="card">
+    <div class="card-header">
+      <div>
+        <div class="card-title"><%= t('dashboard.revenue_chart') %></div>
+        <div class="card-subtitle">Last 7 days</div>
+      </div>
+    </div>
+    <div class="chart-wrap"><canvas id="salesChart" data-testid="sales-chart"></canvas></div>
+  </div>
+  <div class="card">
+    <div class="card-header">
+      <div>
+        <div class="card-title"><%= t('dashboard.category_breakdown') %></div>
+        <div class="card-subtitle">Last 30 days</div>
+      </div>
+    </div>
+    <div class="chart-wrap"><canvas id="catChart" data-testid="cat-chart"></canvas></div>
+  </div>
+</div>
+
+<div class="dashboard-grid">
+  <div class="card">
+    <div class="card-header">
+      <div>
+        <div class="card-title"><%= t('dashboard.recent_sales') %></div>
+        <div class="card-subtitle">Latest transactions</div>
+      </div>
+      <a href="/sales" class="btn btn-sm btn-ghost">All →</a>
+    </div>
+    <div class="table-wrap" data-testid="recent-sales-table">
+      <table class="table">
+        <thead><tr><th>Invoice</th><th>Customer</th><th>Total</th><th>Status</th></tr></thead>
+        <tbody id="recent-sales-body"><tr><td colspan="4" class="empty">Loading...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-header">
+      <div>
+        <div class="card-title"><%= t('dashboard.top_products') %></div>
+        <div class="card-subtitle">By units sold (30 days)</div>
+      </div>
+    </div>
+    <div data-testid="top-products" id="top-products-list"><div class="empty"><i class="ti ti-loader"></i><p>Loading...</p></div></div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <div>
+      <div class="card-title"><%= t('dashboard.stock_alerts') %></div>
+      <div class="card-subtitle">Items at or below alert quantity</div>
+    </div>
+    <a href="/inventory?low=1" class="btn btn-sm btn-ghost">View all →</a>
+  </div>
+  <div class="table-wrap" data-testid="low-stock-table">
+    <table class="table">
+      <thead><tr><th>SKU</th><th><%= t('common.name') %></th><th>Stock</th><th>Alert at</th></tr></thead>
+      <tbody id="low-stock-body"><tr><td colspan="4" class="empty">Loading...</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+(async function(){
+  try {
+    const { data } = await API.get('/api/dashboard/summary');
+    const lang = '<%= lang %>';
+    const pick = (it) => it['name_' + lang] || it.name_en || it.product_name || '—';
+
+    document.getElementById('stat-today-sales').textContent = fmt.money(data.today.sales);
+    document.getElementById('stat-today-orders').textContent = data.today.orders;
+    document.getElementById('stat-week-sales').textContent = fmt.money(data.week.sales);
+    document.getElementById('stat-week-orders').textContent = data.week.orders;
+    document.getElementById('stat-products').textContent = data.counts.products;
+    document.getElementById('stat-customers').textContent = data.counts.customers;
+    document.getElementById('stat-low-stock').textContent = data.counts.low_stock;
+
+    // Sales chart
+    const labels = data.chart.map(c => c.day && String(c.day).slice(5));
+    const totals = data.chart.map(c => parseFloat(c.total));
+    new Chart(document.getElementById('salesChart'), {
+      type: 'line',
+      data: { labels, datasets: [{
+        label: 'Revenue',
+        data: totals,
+        borderColor: '#0d9488',
+        backgroundColor: 'rgba(13,148,136,0.12)',
+        tension: 0.35,
+        fill: true,
+        borderWidth: 3,
+        pointRadius: 5,
+        pointBackgroundColor: '#0d9488',
+        pointBorderColor: 'white',
+        pointBorderWidth: 2,
+      }]},
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: { y: { beginAtZero: true, ticks: { callback: v => fmt.money(v) } } }
+      }
+    });
+
+    // Category chart
+    const catLabels = data.byCategory.map(c => pick(c));
+    const catData = data.byCategory.map(c => parseFloat(c.revenue) || 0);
+    const catColors = data.byCategory.map(c => c.color || '#0d9488');
+    new Chart(document.getElementById('catChart'), {
+      type: 'doughnut',
+      data: { labels: catLabels, datasets: [{ data: catData, backgroundColor: catColors, borderWidth: 0 }] },
+      options: { responsive: true, maintainAspectRatio: false, cutout: '60%',
+        plugins: { legend: { position: 'right', labels: { boxWidth: 12, font: { size: 11 } } } }
+      }
+    });
+
+    // Recent sales
+    const rsb = document.getElementById('recent-sales-body');
+    if (data.recent.length === 0) rsb.innerHTML = '<tr><td colspan="4" class="empty">No recent sales</td></tr>';
+    else rsb.innerHTML = data.recent.map(s => `
+      <tr>
+        <td><a href="/sales/${s.id}" style="color:var(--brand-primary);font-weight:600">${s.invoice_no}</a></td>
+        <td>${s.customer_name || 'Walk-in'}</td>
+        <td class="num">${fmt.money(s.total)}</td>
+        <td><span class="badge ${s.payment_status === 'paid' ? 'success' : (s.payment_status === 'partial' ? 'warning' : 'danger')}">${s.payment_status}</span></td>
+      </tr>`).join('');
+
+    // Top products
+    const tpb = document.getElementById('top-products-list');
+    if (data.topProducts.length === 0) tpb.innerHTML = '<div class="empty"><i class="ti ti-package-off"></i><p>No data yet</p></div>';
+    else tpb.innerHTML = data.topProducts.map((p, i) => `
+      <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px dashed var(--border)">
+        <div style="width:32px;height:32px;border-radius:8px;background:var(--brand-primary);color:white;display:grid;place-items:center;font-weight:700;font-size:13px">#${i+1}</div>
+        <div style="flex:1">
+          <div style="font-weight:600;font-size:13.5px">${p.product_name}</div>
+          <div style="color:var(--text-tertiary);font-size:12px">${fmt.num(p.qty)} units · ${fmt.money(p.revenue)}</div>
+        </div>
+      </div>`).join('');
+
+    // Low stock
+    const lsb = document.getElementById('low-stock-body');
+    if (data.lowList.length === 0) lsb.innerHTML = '<tr><td colspan="4" class="empty">All products are well stocked ✓</td></tr>';
+    else lsb.innerHTML = data.lowList.map(p => `
+      <tr>
+        <td><code style="font-family:var(--font-mono);font-size:12px;color:var(--text-tertiary)">${p.sku}</code></td>
+        <td>${pick(p)}</td>
+        <td class="num"><span class="badge ${parseFloat(p.qty) <= 0 ? 'danger' : 'warning'}">${fmt.num(p.qty)}</span></td>
+        <td class="num">${p.alert_quantity}</td>
+      </tr>`).join('');
+  } catch (e) {
+    console.error(e);
+    toast(e.message, 'error');
+  }
+})();
+</script>

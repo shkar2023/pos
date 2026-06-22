@@ -1,0 +1,137 @@
+<div class="page-header">
+  <h1 class="page-title"><i class="ti ti-truck-delivery"></i><div><%= t('purchases.title') %><div class="page-subtitle">Stock purchases from suppliers</div></div></h1>
+  <div class="page-actions"><button class="btn btn-primary" onclick="resetPurch(); Modal.open('purchModal')" data-testid="btn-new-purch"><i class="ti ti-plus"></i> <%= t('purchases.add') %></button></div>
+</div>
+
+<div class="filter-bar">
+  <input class="form-control" id="searchInput" placeholder="Ref #..." data-testid="purch-search">
+  <input class="form-control" id="fromDate" type="date">
+  <input class="form-control" id="toDate" type="date">
+  <button class="btn" onclick="loadPurch()"><i class="ti ti-filter"></i> Filter</button>
+</div>
+
+<div class="card"><div class="table-wrap"><table class="table" data-testid="purch-table">
+  <thead><tr><th>Ref</th><th>Date</th><th>Supplier</th><th>Branch</th><th>Items</th><th>Total</th><th>Payment</th><th>Status</th></tr></thead>
+  <tbody id="purchBody"><tr><td colspan="8" class="empty">Loading...</td></tr></tbody>
+</table></div></div>
+
+<div class="modal-overlay" id="purchModal">
+  <div class="modal modal-lg">
+    <div class="modal-header"><div class="modal-title">New Purchase</div><button class="modal-close" onclick="Modal.close('purchModal')"><i class="ti ti-x"></i></button></div>
+    <form id="purchForm" data-testid="purch-form">
+      <div class="modal-body">
+        <div class="form-grid">
+          <div class="form-group"><label class="form-label">Supplier *</label>
+            <select class="form-select" id="p_supplier" required data-testid="p-supplier"><% suppliers.forEach(s => { %><option value="<%= s.id %>"><%= s.name %></option><% }) %></select>
+          </div>
+          <div class="form-group"><label class="form-label">Branch</label>
+            <select class="form-select" id="p_branch" data-testid="p-branch"><% branches.forEach(b => { %><option value="<%= b.id %>"><%= b.name %></option><% }) %></select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Add Product</label>
+          <select class="form-select" id="p_pick" data-testid="p-pick"><option value="">— pick product —</option></select>
+        </div>
+        <div class="table-wrap"><table class="table">
+          <thead><tr><th>Product</th><th>Qty</th><th>Cost</th><th>Total</th><th></th></tr></thead>
+          <tbody id="purchItems"><tr><td colspan="5" class="empty">No items</td></tr></tbody>
+        </table></div>
+        <div class="form-grid" style="margin-top:14px">
+          <div class="form-group"><label class="form-label">Discount</label><input class="form-control" id="p_disc" type="number" step="0.01" value="0"></div>
+          <div class="form-group"><label class="form-label">Tax</label><input class="form-control" id="p_tax" type="number" step="0.01" value="0"></div>
+          <div class="form-group"><label class="form-label">Shipping</label><input class="form-control" id="p_ship" type="number" step="0.01" value="0"></div>
+          <div class="form-group"><label class="form-label">Paid Now</label><input class="form-control" id="p_paid" type="number" step="0.01" value="0"></div>
+        </div>
+        <div style="font-size:18px;font-weight:700;text-align:end;padding:8px 0">Total: <span id="p_total" style="color:var(--brand-primary)">$0.00</span></div>
+      </div>
+      <div class="modal-footer"><button type="button" class="btn" onclick="Modal.close('purchModal')">Cancel</button><button type="submit" class="btn btn-primary" data-testid="p-submit"><i class="ti ti-check"></i> Submit Purchase</button></div>
+    </form>
+  </div>
+</div>
+
+<script>
+const lang = '<%= lang %>';
+let PRODS = [];
+const items = new Map();
+
+async function loadPurch() {
+  const params = new URLSearchParams();
+  const s = document.getElementById('searchInput').value; if (s) params.set('search', s);
+  const f = document.getElementById('fromDate').value; if (f) params.set('from', f);
+  const t = document.getElementById('toDate').value; if (t) params.set('to', t);
+  const { data } = await API.get('/api/purchases?' + params);
+  const body = document.getElementById('purchBody');
+  if (!data.length) { body.innerHTML = '<tr><td colspan="8" class="empty">No purchases</td></tr>'; return; }
+  body.innerHTML = data.map(p => `<tr data-testid="purch-row-${p.id}">
+    <td><strong>${p.ref_no}</strong></td><td>${fmt.date(p.purchase_date)}</td>
+    <td>${p.supplier_name||'—'}</td><td>${p.branch_name||'—'}</td>
+    <td>${p.items_count}</td><td class="num">${fmt.money(p.total)}</td>
+    <td><span class="badge ${p.payment_status==='paid'?'success':(p.payment_status==='partial'?'warning':'danger')}">${p.payment_status}</span></td>
+    <td><span class="badge ${p.status==='received'?'success':'info'}">${p.status}</span></td>
+  </tr>`).join('');
+}
+
+async function initLookups() {
+  const { data } = await API.get('/api/products?status=active&limit=500');
+  PRODS = data;
+  document.getElementById('p_pick').innerHTML += PRODS.map(p => `<option value="${p.id}">${p.sku} - ${p['name_'+lang]||p.name_en}</option>`).join('');
+}
+
+document.getElementById('p_pick').addEventListener('change', (e) => {
+  const id = parseInt(e.target.value); if (!id) return;
+  if (!items.has(id)) {
+    const p = PRODS.find(x=>x.id===id);
+    items.set(id, { product: p, qty: 1, cost: parseFloat(p.cost_price)||0 });
+    render();
+  }
+  e.target.value = '';
+});
+
+function render() {
+  const tb = document.getElementById('purchItems');
+  if (items.size === 0) { tb.innerHTML = '<tr><td colspan="5" class="empty">No items</td></tr>'; computeTotal(); return; }
+  tb.innerHTML = [...items.entries()].map(([id, it]) => `<tr>
+    <td>${it.product.sku} · ${it.product['name_'+lang]||it.product.name_en}</td>
+    <td><input type="number" min="0.001" step="0.001" value="${it.qty}" style="width:90px;padding:6px;border:1px solid var(--border);border-radius:6px;font-family:var(--font-mono)" onchange='setQ(${id}, this.value)'></td>
+    <td><input type="number" min="0" step="0.01" value="${it.cost}" style="width:110px;padding:6px;border:1px solid var(--border);border-radius:6px;font-family:var(--font-mono)" onchange='setC(${id}, this.value)'></td>
+    <td class="num">${fmt.money(it.qty * it.cost)}</td>
+    <td><button type="button" class="btn btn-sm" onclick='rm(${id})'><i class="ti ti-x"></i></button></td>
+  </tr>`).join('');
+  computeTotal();
+}
+function setQ(id,v){ const it=items.get(id); if(it){it.qty=parseFloat(v)||1; render();} }
+function setC(id,v){ const it=items.get(id); if(it){it.cost=parseFloat(v)||0; render();} }
+function rm(id){ items.delete(id); render(); }
+function computeTotal() {
+  let sub = 0; for (const it of items.values()) sub += it.qty * it.cost;
+  const disc = parseFloat(document.getElementById('p_disc').value)||0;
+  const tax = parseFloat(document.getElementById('p_tax').value)||0;
+  const ship = parseFloat(document.getElementById('p_ship').value)||0;
+  document.getElementById('p_total').textContent = fmt.money(sub - disc + tax + ship);
+}
+['p_disc','p_tax','p_ship'].forEach(id => document.getElementById(id).addEventListener('input', computeTotal));
+
+function resetPurch() {
+  items.clear(); render();
+  document.getElementById('p_disc').value = 0; document.getElementById('p_tax').value = 0; document.getElementById('p_ship').value = 0; document.getElementById('p_paid').value = 0;
+}
+
+document.getElementById('purchForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  if (items.size === 0) return toast('Add at least one product','warning');
+  const payload = {
+    supplier_id: parseInt(document.getElementById('p_supplier').value),
+    branch_id: parseInt(document.getElementById('p_branch').value),
+    discount_amount: parseFloat(document.getElementById('p_disc').value)||0,
+    tax_amount: parseFloat(document.getElementById('p_tax').value)||0,
+    shipping: parseFloat(document.getElementById('p_ship').value)||0,
+    paid_amount: parseFloat(document.getElementById('p_paid').value)||0,
+    status: 'received',
+    items: [...items.values()].map(it => ({ product_id: it.product.id, quantity: it.qty, cost_price: it.cost })),
+  };
+  try { const r = await API.post('/api/purchases', payload); toast('Purchase recorded: '+r.ref_no,'success'); Modal.close('purchModal'); loadPurch(); }
+  catch(e){toast(e.message,'error');}
+});
+
+initLookups(); loadPurch();
+</script>

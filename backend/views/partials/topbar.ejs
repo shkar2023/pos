@@ -1,0 +1,44 @@
+<header class="topbar" data-testid="topbar">
+  <div class="topbar-search">
+    <i class="ti ti-search"></i>
+    <input type="text" id="globalSearch" placeholder="<%= t('common.search_placeholder') %>" data-testid="global-search">
+    <kbd class="search-kbd">⌘K</kbd>
+  </div>
+  <div class="topbar-actions">
+    <div class="lang-switcher" data-testid="lang-switcher">
+      <button class="lang-btn" type="button">
+        <i class="ti ti-world"></i>
+        <span class="current-lang"><%= lang.toUpperCase() %></span>
+        <i class="ti ti-chevron-down"></i>
+      </button>
+      <div class="lang-menu">
+        <a href="?lang=en" data-testid="lang-en" class="<%= lang==='en'?'active':'' %>"><span class="lang-flag">🇬🇧</span> English</a>
+        <a href="?lang=ar" data-testid="lang-ar" class="<%= lang==='ar'?'active':'' %>"><span class="lang-flag">🇮🇶</span> العربية</a>
+        <a href="?lang=ku" data-testid="lang-ku" class="<%= lang==='ku'?'active':'' %>"><span class="lang-flag">🌟</span> کوردی</a>
+      </div>
+    </div>
+
+    <div class="currency-switcher" data-testid="currency-switcher">
+      <button class="currency-btn" type="button" id="currencyBtn">
+        <span class="currency-current" id="currentCurrency">USD</span>
+        <i class="ti ti-chevron-down"></i>
+      </button>
+      <div class="currency-menu">
+        <a href="#" data-cur="USD" data-testid="cur-usd">$ USD</a>
+        <a href="#" data-cur="IQD" data-testid="cur-iqd">د.ع IQD</a>
+      </div>
+    </div>
+
+    <button class="icon-btn" title="<%= t('pos.title') %>" onclick="window.location='/pos'" data-testid="quick-pos">
+      <i class="ti ti-cash-register"></i>
+    </button>
+
+    <div class="topbar-user" data-testid="topbar-user">
+      <div class="tu-avatar"><%= (currentUser.name||'?').charAt(0).toUpperCase() %></div>
+      <div class="tu-info">
+        <div class="tu-name"><%= currentUser.name %></div>
+        <div class="tu-role"><%= currentUser.role.toUpperCase() %></div>
+      </div>
+    </div>
+  </div>
+</header>

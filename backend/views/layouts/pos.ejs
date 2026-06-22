@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>" dir="<%= dir %>" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>POS · <%= appName %></title>
+  <% if (isRTL) { %>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <% } else { %>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+  <% } %>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.21.0/dist/tabler-icons.min.css">
+  <link rel="stylesheet" href="/static/css/style.css">
+  <script src="/static/js/app.js"></script>
+</head>
+<body class="pos-body <%= isRTL ? 'rtl' : 'ltr' %>">
+  <%- body %>
+  <div id="toast-container" class="toast-container"></div>
+</body>
+</html>

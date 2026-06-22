@@ -1,0 +1,60 @@
+<div class="page-header">
+  <h1 class="page-title"><i class="ti ti-receipt-2"></i><div>Invoice <span id="invNo">…</span><div class="page-subtitle" id="saleDate">Loading…</div></div></h1>
+  <div class="page-actions">
+    <a class="btn" href="/sales"><i class="ti ti-arrow-<%= isRTL?'right':'left' %>"></i> Back</a>
+    <a class="btn btn-primary" href="/sales/<%= saleId %>/print" target="_blank" data-testid="print-receipt"><i class="ti ti-printer"></i> Print Receipt</a>
+  </div>
+</div>
+
+<div class="dashboard-grid">
+  <div class="card">
+    <div class="card-header"><div class="card-title">Items</div></div>
+    <div class="table-wrap"><table class="table" data-testid="sale-items-table">
+      <thead><tr><th>Product</th><th>Qty</th><th>Unit Price</th><th>Total</th></tr></thead>
+      <tbody id="itemsBody"></tbody>
+    </table></div>
+  </div>
+  <div class="card">
+    <div class="card-header"><div class="card-title">Summary</div></div>
+    <div id="saleSummary"></div>
+  </div>
+</div>
+
+<div class="card" style="margin-top:20px">
+  <div class="card-header"><div class="card-title">Customer & Payment</div></div>
+  <div id="saleMeta"></div>
+</div>
+
+<script>
+(async function(){
+  try {
+    const { data } = await API.get('/api/sales/<%= saleId %>');
+    document.getElementById('invNo').textContent = data.invoice_no;
+    document.getElementById('saleDate').textContent = fmt.date(data.sale_date) + ' · Cashier: ' + (data.cashier_name||'—');
+    document.getElementById('itemsBody').innerHTML = data.items.map(it => `<tr>
+      <td>${it.product_name}</td>
+      <td class="num">${fmt.num(it.quantity)}</td>
+      <td class="num">${fmt.money(it.unit_price)}</td>
+      <td class="num">${fmt.money(it.total)}</td>
+    </tr>`).join('');
+    document.getElementById('saleSummary').innerHTML = `
+      <div class="pcs-row"><span>Subtotal</span><span class="num">${fmt.money(data.subtotal)}</span></div>
+      <div class="pcs-row"><span>Discount</span><span class="num">-${fmt.money(data.discount_amount)}</span></div>
+      <div class="pcs-row"><span>Tax</span><span class="num">${fmt.money(data.tax_amount)}</span></div>
+      <div class="pcs-row total"><span>Total</span><span>${fmt.money(data.total)}</span></div>
+      <div class="pcs-row"><span>Paid</span><span class="num">${fmt.money(data.paid_amount)}</span></div>
+      <div class="pcs-row"><span>Change</span><span class="num">${fmt.money(data.change_amount)}</span></div>
+    `;
+    document.getElementById('saleMeta').innerHTML = `
+      <div class="form-grid">
+        <div><strong>Customer:</strong> ${data.customer_name||'Walk-in'}</div>
+        <div><strong>Phone:</strong> ${data.customer_phone||'—'}</div>
+        <div><strong>Branch:</strong> ${data.branch_name||'—'}</div>
+        <div><strong>Payment Status:</strong> <span class="badge ${data.payment_status==='paid'?'success':(data.payment_status==='partial'?'warning':'danger')}">${data.payment_status}</span></div>
+        <div><strong>Payment Method:</strong> ${data.payment_method}</div>
+        <div><strong>Sale Status:</strong> <span class="badge ${data.sale_status==='completed'?'success':(data.sale_status==='returned'?'warning':'danger')}">${data.sale_status}</span></div>
+      </div>
+    `;
+  } catch (e) { toast(e.message, 'error'); }
+})();
+</script>

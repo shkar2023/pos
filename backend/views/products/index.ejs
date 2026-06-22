@@ -1,0 +1,207 @@
+<div class="page-header">
+  <h1 class="page-title"><i class="ti ti-package"></i><div><%= t('products.title') %><div class="page-subtitle">Manage your product catalog</div></div></h1>
+  <div class="page-actions">
+    <button class="btn btn-primary" onclick="Modal.open('productModal'); resetProductForm()" data-testid="btn-add-product"><i class="ti ti-plus"></i> <%= t('products.add') %></button>
+  </div>
+</div>
+
+<div class="filter-bar">
+  <input class="form-control" id="searchInput" placeholder="<%= t('common.search') %>..." data-testid="products-search">
+  <select class="form-select" id="categoryFilter" data-testid="products-cat-filter"><option value=""><%= t('pos.all_categories') %></option></select>
+  <select class="form-select" id="statusFilter" data-testid="products-status-filter">
+    <option value=""><%= t('common.all') %></option>
+    <option value="active"><%= t('common.active') %></option>
+    <option value="inactive"><%= t('common.inactive') %></option>
+  </select>
+  <button class="btn" onclick="loadProducts()" data-testid="products-apply-filter"><i class="ti ti-filter"></i> <%= t('common.filter') %></button>
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table class="table" data-testid="products-table">
+      <thead><tr>
+        <th><%= t('products.sku') %></th>
+        <th><%= t('products.barcode') %></th>
+        <th><%= t('common.name') %></th>
+        <th><%= t('products.category') %></th>
+        <th><%= t('products.cost_price') %></th>
+        <th><%= t('products.sell_price') %></th>
+        <th>Stock</th>
+        <th><%= t('common.status') %></th>
+        <th><%= t('common.actions') %></th>
+      </tr></thead>
+      <tbody id="productsBody"><tr><td colspan="9" class="empty">Loading...</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Product Modal -->
+<div class="modal-overlay" id="productModal">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <div class="modal-title" id="productModalTitle"><%= t('products.add') %></div>
+      <button class="modal-close" onclick="Modal.close('productModal')"><i class="ti ti-x"></i></button>
+    </div>
+    <form id="productForm" data-testid="product-form">
+      <input type="hidden" id="prod_id">
+      <div class="modal-body">
+        <div class="form-grid">
+          <div class="form-group"><label class="form-label"><%= t('products.sku') %> *</label><input class="form-control" id="prod_sku" required data-testid="prod-sku"></div>
+          <div class="form-group"><label class="form-label"><%= t('products.barcode') %></label><input class="form-control" id="prod_barcode" data-testid="prod-barcode"></div>
+        </div>
+        <div class="form-grid">
+          <div class="form-group"><label class="form-label"><%= t('products.name_en') %> *</label><input class="form-control" id="prod_name_en" required data-testid="prod-name-en"></div>
+          <div class="form-group"><label class="form-label"><%= t('products.name_ar') %></label><input class="form-control" id="prod_name_ar" dir="rtl" data-testid="prod-name-ar"></div>
+          <div class="form-group"><label class="form-label"><%= t('products.name_ku') %></label><input class="form-control" id="prod_name_ku" dir="rtl" data-testid="prod-name-ku"></div>
+        </div>
+        <div class="form-grid">
+          <div class="form-group"><label class="form-label"><%= t('products.category') %></label><select class="form-select" id="prod_cat" data-testid="prod-cat"></select></div>
+          <div class="form-group"><label class="form-label"><%= t('products.brand') %></label><select class="form-select" id="prod_brand" data-testid="prod-brand"></select></div>
+          <div class="form-group"><label class="form-label"><%= t('products.unit') %></label><select class="form-select" id="prod_unit" data-testid="prod-unit"></select></div>
+        </div>
+        <div class="form-grid">
+          <div class="form-group"><label class="form-label"><%= t('products.cost_price') %></label><input class="form-control" id="prod_cost" type="number" step="0.01" value="0" data-testid="prod-cost"></div>
+          <div class="form-group"><label class="form-label"><%= t('products.sell_price') %> *</label><input class="form-control" id="prod_sell" type="number" step="0.01" required data-testid="prod-sell"></div>
+          <div class="form-group"><label class="form-label"><%= t('products.wholesale_price') %></label><input class="form-control" id="prod_wholesale" type="number" step="0.01" value="0" data-testid="prod-wholesale"></div>
+          <div class="form-group"><label class="form-label"><%= t('settings.currency') %></label><select class="form-select" id="prod_currency"><option>USD</option><option>IQD</option></select></div>
+        </div>
+        <div class="form-grid">
+          <div class="form-group"><label class="form-label"><%= t('products.tax_rate') %></label><input class="form-control" id="prod_tax" type="number" step="0.01" value="0" data-testid="prod-tax"></div>
+          <div class="form-group"><label class="form-label"><%= t('products.alert_quantity') %></label><input class="form-control" id="prod_alert" type="number" value="5" data-testid="prod-alert"></div>
+          <div class="form-group"><label class="form-label">Opening Stock</label><input class="form-control" id="prod_opening" type="number" value="0" data-testid="prod-opening"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn" onclick="Modal.close('productModal')"><%= t('common.cancel') %></button>
+        <button type="submit" class="btn btn-primary" data-testid="prod-submit"><i class="ti ti-device-floppy"></i> <%= t('common.save') %></button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+const lang = '<%= lang %>';
+let CATS = [], BRANDS = [], UNITS = [];
+
+function pickName(it) { return it['name_' + lang] || it.name_en || it.name || '—'; }
+
+async function loadLookups() {
+  const [c, b, u] = await Promise.all([
+    API.get('/api/categories'),
+    API.get('/api/settings/brands'),
+    API.get('/api/settings/units'),
+  ]);
+  CATS = c.data; BRANDS = b.data; UNITS = u.data;
+  const catSel = document.getElementById('prod_cat');
+  catSel.innerHTML = '<option value="">—</option>' + CATS.map(c => `<option value="${c.id}">${pickName(c)}</option>`).join('');
+  document.getElementById('prod_brand').innerHTML = '<option value="">—</option>' + BRANDS.map(b => `<option value="${b.id}">${b.name}</option>`).join('');
+  document.getElementById('prod_unit').innerHTML = '<option value="">—</option>' + UNITS.map(u => `<option value="${u.id}">${u.name} (${u.short_code})</option>`).join('');
+  document.getElementById('categoryFilter').innerHTML = '<option value=""><%= t("pos.all_categories") %></option>' + CATS.map(c => `<option value="${c.id}">${pickName(c)}</option>`).join('');
+}
+
+async function loadProducts() {
+  const search = document.getElementById('searchInput').value;
+  const cat = document.getElementById('categoryFilter').value;
+  const status = document.getElementById('statusFilter').value;
+  const params = new URLSearchParams();
+  if (search) params.set('search', search);
+  if (cat) params.set('category', cat);
+  if (status) params.set('status', status);
+  try {
+    const { data } = await API.get('/api/products?' + params);
+    const body = document.getElementById('productsBody');
+    if (data.length === 0) {
+      body.innerHTML = '<tr><td colspan="9" class="empty">No products found</td></tr>';
+      return;
+    }
+    body.innerHTML = data.map(p => `<tr data-testid="product-row-${p.id}">
+      <td><code style="font-family:var(--font-mono);font-size:12px">${p.sku}</code></td>
+      <td>${p.barcode||'—'}</td>
+      <td><div style="font-weight:600">${pickName(p)}</div></td>
+      <td>${pickName({ name_en: p.category_name_en, name_ar: p.category_name_ar, name_ku: p.category_name_ku }) || '—'}</td>
+      <td class="num">${fmt.money(p.cost_price)}</td>
+      <td class="num">${fmt.money(p.sell_price)}</td>
+      <td class="num"><span class="badge ${parseFloat(p.stock_qty)<=p.alert_quantity?'warning':'success'}">${fmt.num(p.stock_qty||0)}</span></td>
+      <td><span class="badge ${p.is_active?'success':'danger'}">${p.is_active?'<%= t("common.active") %>':'<%= t("common.inactive") %>'}</span></td>
+      <td>
+        <button class="btn btn-sm" onclick='editProduct(${JSON.stringify(p)})' data-testid="edit-${p.id}"><i class="ti ti-edit"></i></button>
+        <button class="btn btn-sm" onclick='deleteProduct(${p.id})' data-testid="del-${p.id}"><i class="ti ti-trash"></i></button>
+      </td>
+    </tr>`).join('');
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+function resetProductForm() {
+  document.getElementById('productModalTitle').textContent = '<%= t("products.add") %>';
+  document.getElementById('productForm').reset();
+  document.getElementById('prod_id').value = '';
+  document.getElementById('prod_cost').value = '0';
+  document.getElementById('prod_wholesale').value = '0';
+  document.getElementById('prod_tax').value = '0';
+  document.getElementById('prod_alert').value = '5';
+  document.getElementById('prod_opening').value = '0';
+}
+
+function editProduct(p) {
+  document.getElementById('productModalTitle').textContent = '<%= t("products.edit") %>';
+  document.getElementById('prod_id').value = p.id;
+  document.getElementById('prod_sku').value = p.sku || '';
+  document.getElementById('prod_barcode').value = p.barcode || '';
+  document.getElementById('prod_name_en').value = p.name_en || '';
+  document.getElementById('prod_name_ar').value = p.name_ar || '';
+  document.getElementById('prod_name_ku').value = p.name_ku || '';
+  document.getElementById('prod_cat').value = p.category_id || '';
+  document.getElementById('prod_brand').value = p.brand_id || '';
+  document.getElementById('prod_unit').value = p.unit_id || '';
+  document.getElementById('prod_cost').value = p.cost_price || 0;
+  document.getElementById('prod_sell').value = p.sell_price || 0;
+  document.getElementById('prod_wholesale').value = p.wholesale_price || 0;
+  document.getElementById('prod_currency').value = p.currency || 'USD';
+  document.getElementById('prod_tax').value = p.tax_rate || 0;
+  document.getElementById('prod_alert').value = p.alert_quantity || 5;
+  Modal.open('productModal');
+}
+
+async function deleteProduct(id) {
+  if (!confirmAction('Deactivate this product?')) return;
+  try { await API.del('/api/products/' + id); toast('Deleted', 'success'); loadProducts(); }
+  catch (e) { toast(e.message, 'error'); }
+}
+
+document.getElementById('productForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const id = document.getElementById('prod_id').value;
+  const payload = {
+    sku: document.getElementById('prod_sku').value,
+    barcode: document.getElementById('prod_barcode').value,
+    name_en: document.getElementById('prod_name_en').value,
+    name_ar: document.getElementById('prod_name_ar').value,
+    name_ku: document.getElementById('prod_name_ku').value,
+    category_id: parseInt(document.getElementById('prod_cat').value) || null,
+    brand_id: parseInt(document.getElementById('prod_brand').value) || null,
+    unit_id: parseInt(document.getElementById('prod_unit').value) || null,
+    cost_price: parseFloat(document.getElementById('prod_cost').value) || 0,
+    sell_price: parseFloat(document.getElementById('prod_sell').value) || 0,
+    wholesale_price: parseFloat(document.getElementById('prod_wholesale').value) || 0,
+    currency: document.getElementById('prod_currency').value,
+    tax_rate: parseFloat(document.getElementById('prod_tax').value) || 0,
+    alert_quantity: parseInt(document.getElementById('prod_alert').value) || 5,
+    opening_stock: parseFloat(document.getElementById('prod_opening').value) || 0,
+    is_active: true,
+  };
+  try {
+    if (id) await API.put('/api/products/' + id, payload);
+    else await API.post('/api/products', payload);
+    toast('Saved', 'success');
+    Modal.close('productModal');
+    loadProducts();
+  } catch (e) { toast(e.message, 'error'); }
+});
+
+document.getElementById('searchInput').addEventListener('input', () => {
+  clearTimeout(window._psr);
+  window._psr = setTimeout(loadProducts, 300);
+});
+
+loadLookups().then(loadProducts);
+</script>

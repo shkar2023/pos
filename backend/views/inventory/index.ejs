@@ -1,0 +1,93 @@
+<div class="page-header">
+  <h1 class="page-title"><i class="ti ti-building-warehouse"></i><div><%= t('nav.inventory') %><div class="page-subtitle">Stock levels across branches</div></div></h1>
+  <div class="page-actions">
+    <a href="/stock-transfers" class="btn"><i class="ti ti-transfer"></i> <%= t('nav.stock_transfers') %></a>
+  </div>
+</div>
+
+<div class="filter-bar">
+  <input class="form-control" id="searchInput" placeholder="Search products..." data-testid="inv-search">
+  <select class="form-select" id="branchFilter" data-testid="inv-branch-filter">
+    <option value=""><%= t('common.all') %> branches</option>
+    <% branches.forEach(br => { %><option value="<%= br.id %>"><%= br.name %></option><% }) %>
+  </select>
+  <label style="display:flex;align-items:center;gap:6px;font-size:13px">
+    <input type="checkbox" id="lowOnly" data-testid="inv-low-only"> Low stock only
+  </label>
+  <button class="btn" onclick="loadInv()" data-testid="inv-apply"><i class="ti ti-filter"></i> Filter</button>
+</div>
+
+<div class="card">
+  <div class="table-wrap"><table class="table" data-testid="inv-table">
+    <thead><tr><th>SKU</th><th>Name</th><th>Branch</th><th>Stock</th><th>Alert at</th><th>Stock Value</th><th>Actions</th></tr></thead>
+    <tbody id="invBody"><tr><td colspan="7" class="empty">Loading...</td></tr></tbody>
+  </table></div>
+</div>
+
+<div class="modal-overlay" id="adjModal">
+  <div class="modal">
+    <div class="modal-header"><div class="modal-title">Adjust Stock</div><button class="modal-close" onclick="Modal.close('adjModal')"><i class="ti ti-x"></i></button></div>
+    <form id="adjForm">
+      <input type="hidden" id="adj_pid"><input type="hidden" id="adj_bid">
+      <div class="modal-body">
+        <div class="form-group"><label class="form-label">Product</label><input class="form-control" id="adj_product" readonly></div>
+        <div class="form-group"><label class="form-label">Current Stock</label><input class="form-control" id="adj_current" readonly></div>
+        <div class="form-group"><label class="form-label">New Stock Quantity</label><input class="form-control" id="adj_qty" type="number" step="0.001" required data-testid="adj-qty"></div>
+        <div class="form-group"><label class="form-label">Notes</label><input class="form-control" id="adj_notes" placeholder="Reason for adjustment"></div>
+      </div>
+      <div class="modal-footer"><button type="button" class="btn" onclick="Modal.close('adjModal')">Cancel</button><button type="submit" class="btn btn-primary" data-testid="adj-submit">Save</button></div>
+    </form>
+  </div>
+</div>
+
+<script>
+const lang = '<%= lang %>';
+function pickName(p) { return p['name_'+lang] || p.name_en; }
+const url = new URL(window.location.href);
+if (url.searchParams.get('low')) document.getElementById('lowOnly').checked = true;
+
+async function loadInv() {
+  const params = new URLSearchParams();
+  const s = document.getElementById('searchInput').value; if (s) params.set('search', s);
+  const b = document.getElementById('branchFilter').value; if (b) params.set('branch', b);
+  if (document.getElementById('lowOnly').checked) params.set('low_only','1');
+  const { data } = await API.get('/api/inventory?' + params);
+  const body = document.getElementById('invBody');
+  if (!data.length) { body.innerHTML = '<tr><td colspan="7" class="empty">No items</td></tr>'; return; }
+  body.innerHTML = data.map(it => `<tr data-testid="inv-row-${it.product_id}-${it.branch_id}">
+    <td><code style="font-family:var(--font-mono);font-size:12px">${it.sku}</code></td>
+    <td>${pickName(it)}</td>
+    <td>${it.branch_name}</td>
+    <td class="num"><span class="badge ${parseFloat(it.quantity)<=parseFloat(it.alert_quantity)?'warning':'success'}">${fmt.num(it.quantity)}</span></td>
+    <td class="num">${it.alert_quantity}</td>
+    <td class="num">${fmt.money(parseFloat(it.quantity) * parseFloat(it.cost_price))}</td>
+    <td><button class="btn btn-sm" onclick='openAdjust(${JSON.stringify(it)})' data-testid="adjust-${it.product_id}-${it.branch_id}"><i class="ti ti-adjustments"></i> Adjust</button></td>
+  </tr>`).join('');
+}
+
+function openAdjust(it) {
+  document.getElementById('adj_pid').value = it.product_id;
+  document.getElementById('adj_bid').value = it.branch_id;
+  document.getElementById('adj_product').value = it.sku + ' - ' + pickName(it);
+  document.getElementById('adj_current').value = it.quantity;
+  document.getElementById('adj_qty').value = it.quantity;
+  document.getElementById('adj_notes').value = '';
+  Modal.open('adjModal');
+}
+
+document.getElementById('adjForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  try {
+    await API.post('/api/inventory/set', {
+      product_id: parseInt(document.getElementById('adj_pid').value),
+      branch_id: parseInt(document.getElementById('adj_bid').value),
+      quantity: parseFloat(document.getElementById('adj_qty').value),
+      notes: document.getElementById('adj_notes').value,
+    });
+    toast('Stock updated','success'); Modal.close('adjModal'); loadInv();
+  } catch(e) { toast(e.message,'error'); }
+});
+
+document.getElementById('searchInput').addEventListener('input', () => { clearTimeout(window._isr); window._isr = setTimeout(loadInv, 300); });
+loadInv();
+</script>

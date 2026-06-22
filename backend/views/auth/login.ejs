@@ -1,0 +1,58 @@
+<div class="auth-card" data-testid="auth-card">
+  <div class="auth-side">
+    <div class="brand">
+      <span class="brand-mark"><i class="ti ti-bolt-filled"></i></span>
+      <div class="brand-text">
+        <div class="brand-title">EMERGENT POS</div>
+        <div class="brand-subtitle"><%= t('app.tagline') %></div>
+      </div>
+    </div>
+    <div class="auth-features">
+      <h3><%= t('auth.welcome_back') %><br>to next-gen retail.</h3>
+      <p>Designed for stores, restaurants and supermarkets across Iraq & Kurdistan.</p>
+      <ul class="auth-feature-list">
+        <li><i class="ti ti-circle-check-filled"></i> Multi-language: English · العربية · کوردی</li>
+        <li><i class="ti ti-circle-check-filled"></i> Multi-currency: USD · IQD with live conversion</li>
+        <li><i class="ti ti-circle-check-filled"></i> Multi-branch, multi-warehouse inventory</li>
+        <li><i class="ti ti-circle-check-filled"></i> Real-time dashboards & deep analytics</li>
+        <li><i class="ti ti-circle-check-filled"></i> Barcode, receipt printing, returns, loyalty</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="auth-form">
+    <div class="auth-lang-pick" data-testid="auth-lang-pick">
+      <a href="?lang=en" class="<%= lang==='en'?'active':'' %>" data-testid="auth-lang-en">EN</a>
+      <a href="?lang=ar" class="<%= lang==='ar'?'active':'' %>" data-testid="auth-lang-ar">العربية</a>
+      <a href="?lang=ku" class="<%= lang==='ku'?'active':'' %>" data-testid="auth-lang-ku">کوردی</a>
+    </div>
+    <h2><%= t('auth.sign_in') %></h2>
+    <p class="subtitle"><%= t('auth.sign_in_to_continue') %></p>
+
+    <% if (error) { %>
+      <div class="auth-error" data-testid="auth-error"><i class="ti ti-alert-circle"></i><%= error %></div>
+    <% } %>
+
+    <form method="POST" action="/login" data-testid="login-form">
+      <div class="form-group">
+        <label class="form-label"><%= t('auth.email') %></label>
+        <input class="form-control" type="email" name="email" required autofocus value="admin@pos.com" data-testid="login-email" placeholder="you@example.com">
+      </div>
+      <div class="form-group">
+        <label class="form-label"><%= t('auth.password') %></label>
+        <input class="form-control" type="password" name="password" required value="admin123" data-testid="login-password" placeholder="••••••••">
+      </div>
+      <button type="submit" class="btn btn-primary" data-testid="login-submit">
+        <i class="ti ti-login-2"></i> <%= t('auth.sign_in') %>
+      </button>
+    </form>
+
+    <div class="demo-creds" data-testid="demo-creds">
+      <strong>Demo accounts:</strong><br>
+      <code>admin@pos.com</code> / <code>admin123</code> (full access)<br>
+      <code>manager@pos.com</code> / <code>manager123</code><br>
+      <code>cashier@pos.com</code> / <code>cashier123</code><br>
+      <code>accountant@pos.com</code> / <code>account123</code>
+    </div>
+  </div>
+</div>

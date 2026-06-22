@@ -1,0 +1,109 @@
+<aside class="sidebar" data-testid="sidebar">
+  <div class="sidebar-header">
+    <a href="/" class="brand" data-testid="brand">
+      <span class="brand-mark"><i class="ti ti-bolt-filled"></i></span>
+      <div class="brand-text">
+        <div class="brand-title">EMERGENT</div>
+        <div class="brand-subtitle"><%= t('app.tagline') %></div>
+      </div>
+    </a>
+  </div>
+
+  <nav class="sidebar-nav" data-testid="sidebar-nav">
+    <div class="nav-section">
+      <div class="nav-section-label"><%= t('nav.main') %></div>
+      <a href="/" class="nav-item <%= activeNav==='dashboard'?'active':'' %>" data-testid="nav-dashboard">
+        <i class="ti ti-layout-dashboard"></i><span><%= t('nav.dashboard') %></span>
+      </a>
+      <% if (['admin','manager','cashier'].includes(currentUser.role)) { %>
+      <a href="/pos" class="nav-item <%= activeNav==='pos'?'active':'' %>" data-testid="nav-pos">
+        <i class="ti ti-cash-register"></i><span><%= t('nav.pos') %></span>
+        <span class="nav-badge">POS</span>
+      </a>
+      <% } %>
+    </div>
+
+    <div class="nav-section">
+      <div class="nav-section-label"><%= t('nav.operations') %></div>
+      <a href="/products" class="nav-item <%= activeNav==='products'?'active':'' %>" data-testid="nav-products">
+        <i class="ti ti-package"></i><span><%= t('nav.products') %></span>
+      </a>
+      <a href="/categories" class="nav-item <%= activeNav==='categories'?'active':'' %>" data-testid="nav-categories">
+        <i class="ti ti-category"></i><span><%= t('nav.categories') %></span>
+      </a>
+      <a href="/inventory" class="nav-item <%= activeNav==='inventory'?'active':'' %>" data-testid="nav-inventory">
+        <i class="ti ti-building-warehouse"></i><span><%= t('nav.inventory') %></span>
+      </a>
+      <% if (['admin','manager'].includes(currentUser.role)) { %>
+      <a href="/stock-transfers" class="nav-item <%= activeNav==='stock_transfers'?'active':'' %>" data-testid="nav-transfers">
+        <i class="ti ti-transfer"></i><span><%= t('nav.stock_transfers') %></span>
+      </a>
+      <% } %>
+      <a href="/sales" class="nav-item <%= activeNav==='sales'?'active':'' %>" data-testid="nav-sales">
+        <i class="ti ti-receipt"></i><span><%= t('nav.sales') %></span>
+      </a>
+      <% if (['admin','manager','accountant'].includes(currentUser.role)) { %>
+      <a href="/purchases" class="nav-item <%= activeNav==='purchases'?'active':'' %>" data-testid="nav-purchases">
+        <i class="ti ti-truck-delivery"></i><span><%= t('nav.purchases') %></span>
+      </a>
+      <% } %>
+    </div>
+
+    <div class="nav-section">
+      <div class="nav-section-label"><%= t('nav.contacts') %></div>
+      <a href="/customers" class="nav-item <%= activeNav==='customers'?'active':'' %>" data-testid="nav-customers">
+        <i class="ti ti-users"></i><span><%= t('nav.customers') %></span>
+      </a>
+      <% if (['admin','manager','accountant'].includes(currentUser.role)) { %>
+      <a href="/suppliers" class="nav-item <%= activeNav==='suppliers'?'active':'' %>" data-testid="nav-suppliers">
+        <i class="ti ti-building-store"></i><span><%= t('nav.suppliers') %></span>
+      </a>
+      <% } %>
+    </div>
+
+    <% if (['admin','manager','accountant'].includes(currentUser.role)) { %>
+    <div class="nav-section">
+      <div class="nav-section-label"><%= t('nav.finance') %></div>
+      <a href="/expenses" class="nav-item <%= activeNav==='expenses'?'active':'' %>" data-testid="nav-expenses">
+        <i class="ti ti-coin"></i><span><%= t('nav.expenses') %></span>
+      </a>
+      <a href="/reports" class="nav-item <%= activeNav==='reports'?'active':'' %>" data-testid="nav-reports">
+        <i class="ti ti-chart-bar"></i><span><%= t('nav.reports') %></span>
+      </a>
+    </div>
+    <% } %>
+
+    <% if (['admin','manager'].includes(currentUser.role)) { %>
+    <div class="nav-section">
+      <div class="nav-section-label"><%= t('nav.admin') %></div>
+      <a href="/users" class="nav-item <%= activeNav==='users'?'active':'' %>" data-testid="nav-users">
+        <i class="ti ti-user-shield"></i><span><%= t('nav.users') %></span>
+      </a>
+      <% if (currentUser.role === 'admin') { %>
+      <a href="/branches" class="nav-item <%= activeNav==='branches'?'active':'' %>" data-testid="nav-branches">
+        <i class="ti ti-building"></i><span><%= t('nav.branches') %></span>
+      </a>
+      <a href="/settings" class="nav-item <%= activeNav==='settings'?'active':'' %>" data-testid="nav-settings">
+        <i class="ti ti-settings"></i><span><%= t('nav.settings') %></span>
+      </a>
+      <% } %>
+      <a href="/activity" class="nav-item <%= activeNav==='activity'?'active':'' %>" data-testid="nav-activity">
+        <i class="ti ti-history"></i><span><%= t('nav.activity') %></span>
+      </a>
+    </div>
+    <% } %>
+  </nav>
+
+  <div class="sidebar-footer">
+    <div class="user-card" data-testid="user-card">
+      <div class="user-avatar"><%= (currentUser.name||'?').charAt(0).toUpperCase() %></div>
+      <div class="user-info">
+        <div class="user-name"><%= currentUser.name %></div>
+        <div class="user-role"><%= currentUser.role %></div>
+      </div>
+      <a href="/logout" class="logout-btn" data-testid="logout-btn" title="<%= t('auth.logout') %>">
+        <i class="ti ti-logout"></i>
+      </a>
+    </div>
+  </div>
+</aside>

@@ -1,0 +1,92 @@
+<div class="page-header">
+  <h1 class="page-title"><i class="ti ti-chart-bar"></i><div><%= t('reports.title') %><div class="page-subtitle">Business intelligence & analytics</div></div></h1>
+</div>
+
+<div class="filter-bar">
+  <input class="form-control" id="fromDate" type="date" data-testid="rep-from">
+  <input class="form-control" id="toDate" type="date" data-testid="rep-to">
+  <button class="btn btn-primary" onclick="loadAll()" data-testid="rep-apply"><i class="ti ti-refresh"></i> Generate</button>
+</div>
+
+<div class="stats-grid">
+  <div class="stat-card success"><div class="stat-icon"><i class="ti ti-trending-up"></i></div><div class="stat-label">Revenue</div><div class="stat-value" id="r_revenue">—</div></div>
+  <div class="stat-card warning"><div class="stat-icon"><i class="ti ti-package"></i></div><div class="stat-label">Cost (COGS)</div><div class="stat-value" id="r_cost">—</div></div>
+  <div class="stat-card primary"><div class="stat-icon"><i class="ti ti-cash"></i></div><div class="stat-label">Gross Profit</div><div class="stat-value" id="r_gross">—</div></div>
+  <div class="stat-card danger"><div class="stat-icon"><i class="ti ti-receipt-2"></i></div><div class="stat-label">Expenses</div><div class="stat-value" id="r_exp">—</div></div>
+  <div class="stat-card accent"><div class="stat-icon"><i class="ti ti-coin"></i></div><div class="stat-label">Net Profit</div><div class="stat-value" id="r_net">—</div></div>
+</div>
+
+<div class="dashboard-grid">
+  <div class="card">
+    <div class="card-header"><div><div class="card-title"><%= t('reports.sales_report') %></div><div class="card-subtitle">Daily breakdown</div></div></div>
+    <div class="chart-wrap"><canvas id="rev_chart"></canvas></div>
+  </div>
+  <div class="card">
+    <div class="card-header"><div class="card-title">Payment Methods</div></div>
+    <div class="chart-wrap"><canvas id="pm_chart"></canvas></div>
+  </div>
+</div>
+
+<div class="card" style="margin-top:20px">
+  <div class="card-header"><div class="card-title"><%= t('reports.top_products') %></div></div>
+  <div class="table-wrap"><table class="table" data-testid="top-products-table">
+    <thead><tr><th>#</th><th>Product</th><th>SKU</th><th>Qty</th><th>Revenue</th><th>Cost</th><th>Profit</th></tr></thead>
+    <tbody id="topBody"><tr><td colspan="7" class="empty">Loading...</td></tr></tbody>
+  </table></div>
+</div>
+
+<script>
+let revChart, pmChart;
+const today = new Date(); today.setDate(today.getDate());
+const monthAgo = new Date(); monthAgo.setDate(today.getDate()-30);
+document.getElementById('fromDate').value = monthAgo.toISOString().slice(0,10);
+document.getElementById('toDate').value = today.toISOString().slice(0,10);
+
+async function loadAll() {
+  const from = document.getElementById('fromDate').value;
+  const to = document.getElementById('toDate').value;
+  const q = new URLSearchParams({from, to}).toString();
+  try {
+    const [s, pl, tp] = await Promise.all([
+      API.get('/api/reports/sales?'+q),
+      API.get('/api/reports/profit-loss?'+q),
+      API.get('/api/reports/top-products?'+q),
+    ]);
+    document.getElementById('r_revenue').textContent = fmt.money(pl.data.revenue);
+    document.getElementById('r_cost').textContent = fmt.money(pl.data.cost);
+    document.getElementById('r_gross').textContent = fmt.money(pl.data.gross_profit);
+    document.getElementById('r_exp').textContent = fmt.money(pl.data.expenses);
+    document.getElementById('r_net').textContent = fmt.money(pl.data.net_profit);
+
+    // Daily revenue chart
+    const labels = s.data.daily.map(d => d.day && String(d.day).slice(5)).reverse();
+    const rev = s.data.daily.map(d => parseFloat(d.revenue)).reverse();
+    if (revChart) revChart.destroy();
+    revChart = new Chart(document.getElementById('rev_chart'), {
+      type: 'bar',
+      data: { labels, datasets: [{ label: 'Revenue', data: rev, backgroundColor: '#0d9488', borderRadius: 6 }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+    });
+
+    // Payment method donut
+    const pmLabels = s.data.byMethod.map(p => p.payment_method);
+    const pmData = s.data.byMethod.map(p => parseFloat(p.revenue));
+    if (pmChart) pmChart.destroy();
+    pmChart = new Chart(document.getElementById('pm_chart'), {
+      type: 'doughnut',
+      data: { labels: pmLabels, datasets: [{ data: pmData, backgroundColor: ['#0d9488','#f59e0b','#3b82f6','#8b5cf6','#10b981'], borderWidth: 0 }] },
+      options: { responsive: true, maintainAspectRatio: false, cutout: '60%' }
+    });
+
+    // Top products
+    const body = document.getElementById('topBody');
+    if (!tp.data.length) body.innerHTML = '<tr><td colspan="7" class="empty">No sales in this period</td></tr>';
+    else body.innerHTML = tp.data.map((p, i) => `<tr>
+      <td><strong>#${i+1}</strong></td><td>${p.product_name}</td><td><code>${p.sku||'—'}</code></td>
+      <td class="num">${fmt.num(p.qty)}</td><td class="num">${fmt.money(p.revenue)}</td>
+      <td class="num">${fmt.money(p.cost)}</td><td class="num"><strong style="color:var(--success)">${fmt.money(p.profit)}</strong></td>
+    </tr>`).join('');
+  } catch (e) { toast(e.message, 'error'); }
+}
+loadAll();
+</script>

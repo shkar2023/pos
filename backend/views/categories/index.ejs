@@ -1,0 +1,82 @@
+<div class="page-header">
+  <h1 class="page-title"><i class="ti ti-category"></i><div><%= t('nav.categories') %><div class="page-subtitle">Organize products into groups</div></div></h1>
+  <div class="page-actions">
+    <button class="btn btn-primary" onclick="resetCatForm(); Modal.open('catModal')" data-testid="btn-add-cat"><i class="ti ti-plus"></i> Add Category</button>
+  </div>
+</div>
+
+<div class="card">
+  <div class="table-wrap"><table class="table" data-testid="cats-table">
+    <thead><tr><th>#</th><th>Name (EN)</th><th>Name (AR)</th><th>Name (KU)</th><th>Color</th><th>Products</th><th><%= t('common.status') %></th><th><%= t('common.actions') %></th></tr></thead>
+    <tbody id="catsBody"><tr><td colspan="8" class="empty">Loading...</td></tr></tbody>
+  </table></div>
+</div>
+
+<div class="modal-overlay" id="catModal">
+  <div class="modal">
+    <div class="modal-header"><div class="modal-title" id="catTitle">Add Category</div><button class="modal-close" onclick="Modal.close('catModal')"><i class="ti ti-x"></i></button></div>
+    <form id="catForm" data-testid="cat-form">
+      <input type="hidden" id="cat_id">
+      <div class="modal-body">
+        <div class="form-group"><label class="form-label">Name (English) *</label><input class="form-control" id="cat_name_en" required data-testid="cat-name-en"></div>
+        <div class="form-group"><label class="form-label">Name (Arabic)</label><input class="form-control" id="cat_name_ar" dir="rtl" data-testid="cat-name-ar"></div>
+        <div class="form-group"><label class="form-label">Name (Kurdish)</label><input class="form-control" id="cat_name_ku" dir="rtl" data-testid="cat-name-ku"></div>
+        <div class="form-group"><label class="form-label">Color</label><input class="form-control" id="cat_color" type="color" value="#0d9488" data-testid="cat-color"></div>
+        <div class="form-group"><label class="form-label">Icon (Tabler)</label><input class="form-control" id="cat_icon" value="package" data-testid="cat-icon"></div>
+      </div>
+      <div class="modal-footer"><button type="button" class="btn" onclick="Modal.close('catModal')"><%= t('common.cancel') %></button><button type="submit" class="btn btn-primary" data-testid="cat-submit"><%= t('common.save') %></button></div>
+    </form>
+  </div>
+</div>
+
+<script>
+const lang = '<%= lang %>';
+async function loadCats() {
+  const { data } = await API.get('/api/categories');
+  const b = document.getElementById('catsBody');
+  if (!data.length) { b.innerHTML = '<tr><td colspan="8" class="empty">No categories</td></tr>'; return; }
+  b.innerHTML = data.map(c => `<tr data-testid="cat-row-${c.id}">
+    <td>${c.id}</td><td>${c.name_en||''}</td><td>${c.name_ar||''}</td><td>${c.name_ku||''}</td>
+    <td><span style="display:inline-block;width:20px;height:20px;border-radius:4px;background:${c.color};vertical-align:middle"></span> <code>${c.color}</code></td>
+    <td>${c.product_count}</td>
+    <td><span class="badge ${c.is_active?'success':'danger'}">${c.is_active?'<%= t("common.active") %>':'<%= t("common.inactive") %>'}</span></td>
+    <td>
+      <button class="btn btn-sm" onclick='editCat(${JSON.stringify(c)})'><i class="ti ti-edit"></i></button>
+      <button class="btn btn-sm" onclick='delCat(${c.id})'><i class="ti ti-trash"></i></button>
+    </td>
+  </tr>`).join('');
+}
+function resetCatForm() { document.getElementById('catTitle').textContent = 'Add Category'; document.getElementById('catForm').reset(); document.getElementById('cat_id').value = ''; document.getElementById('cat_color').value='#0d9488'; }
+function editCat(c) {
+  document.getElementById('catTitle').textContent = 'Edit Category';
+  document.getElementById('cat_id').value = c.id;
+  document.getElementById('cat_name_en').value = c.name_en||'';
+  document.getElementById('cat_name_ar').value = c.name_ar||'';
+  document.getElementById('cat_name_ku').value = c.name_ku||'';
+  document.getElementById('cat_color').value = c.color||'#0d9488';
+  document.getElementById('cat_icon').value = c.icon||'package';
+  Modal.open('catModal');
+}
+async function delCat(id) {
+  if (!confirmAction('Deactivate?')) return;
+  await API.del('/api/categories/'+id); toast('Done','success'); loadCats();
+}
+document.getElementById('catForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const id = document.getElementById('cat_id').value;
+  const payload = {
+    name_en: document.getElementById('cat_name_en').value,
+    name_ar: document.getElementById('cat_name_ar').value,
+    name_ku: document.getElementById('cat_name_ku').value,
+    color: document.getElementById('cat_color').value,
+    icon: document.getElementById('cat_icon').value,
+    is_active: true,
+  };
+  try {
+    if (id) await API.put('/api/categories/'+id, payload);
+    else await API.post('/api/categories', payload);
+    toast('Saved','success'); Modal.close('catModal'); loadCats();
+  } catch(e) { toast(e.message,'error'); }
+});
+loadCats();
+</script>

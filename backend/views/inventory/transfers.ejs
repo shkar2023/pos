@@ -1,0 +1,97 @@
+<div class="page-header">
+  <h1 class="page-title"><i class="ti ti-transfer"></i><div><%= t('nav.stock_transfers') %><div class="page-subtitle">Move stock between branches/warehouses</div></div></h1>
+  <div class="page-actions">
+    <button class="btn btn-primary" onclick="Modal.open('xferModal')" data-testid="btn-new-xfer"><i class="ti ti-plus"></i> New Transfer</button>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header"><div class="card-title">Recent Transfers</div></div>
+  <div class="table-wrap"><table class="table">
+    <thead><tr><th>Ref</th><th>From</th><th>To</th><th>Status</th><th>Date</th></tr></thead>
+    <tbody id="xferBody"><tr><td colspan="5" class="empty">No transfers yet</td></tr></tbody>
+  </table></div>
+</div>
+
+<div class="modal-overlay" id="xferModal">
+  <div class="modal modal-lg">
+    <div class="modal-header"><div class="modal-title">New Stock Transfer</div><button class="modal-close" onclick="Modal.close('xferModal')"><i class="ti ti-x"></i></button></div>
+    <form id="xferForm" data-testid="xfer-form">
+      <div class="modal-body">
+        <div class="form-grid">
+          <div class="form-group"><label class="form-label">From Branch</label>
+            <select class="form-select" id="xfer_from" data-testid="xfer-from"><% branches.forEach(b => { %><option value="<%= b.id %>"><%= b.name %></option><% }) %></select>
+          </div>
+          <div class="form-group"><label class="form-label">To Branch</label>
+            <select class="form-select" id="xfer_to" data-testid="xfer-to"><% branches.forEach(b => { %><option value="<%= b.id %>"><%= b.name %></option><% }) %></select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Add Product</label>
+          <select class="form-select" id="xfer_prod_pick" data-testid="xfer-prod-pick"><option value="">— pick product —</option></select>
+        </div>
+        <div class="table-wrap"><table class="table">
+          <thead><tr><th>Product</th><th>Quantity</th><th></th></tr></thead>
+          <tbody id="xferItems"><tr><td colspan="3" class="empty">No items</td></tr></tbody>
+        </table></div>
+        <div class="form-group" style="margin-top:12px"><label class="form-label">Notes</label><input class="form-control" id="xfer_notes"></div>
+      </div>
+      <div class="modal-footer"><button type="button" class="btn" onclick="Modal.close('xferModal')">Cancel</button><button type="submit" class="btn btn-primary" data-testid="xfer-submit"><i class="ti ti-check"></i> Submit Transfer</button></div>
+    </form>
+  </div>
+</div>
+
+<script>
+const lang = '<%= lang %>';
+let PRODS = [];
+const items = new Map();
+
+async function init() {
+  const { data } = await API.get('/api/products?status=active&limit=500');
+  PRODS = data;
+  document.getElementById('xfer_prod_pick').innerHTML += PRODS.map(p => `<option value="${p.id}">${p.sku} - ${p['name_'+lang]||p.name_en}</option>`).join('');
+}
+
+document.getElementById('xfer_prod_pick').addEventListener('change', (e) => {
+  const id = parseInt(e.target.value);
+  if (!id) return;
+  if (!items.has(id)) {
+    const p = PRODS.find(x => x.id === id);
+    items.set(id, { product: p, qty: 1 });
+    renderItems();
+  }
+  e.target.value = '';
+});
+
+function renderItems() {
+  const tb = document.getElementById('xferItems');
+  if (items.size === 0) { tb.innerHTML = '<tr><td colspan="3" class="empty">No items</td></tr>'; return; }
+  tb.innerHTML = [...items.entries()].map(([id, it]) => `<tr data-id="${id}">
+    <td>${it.product.sku} · ${it.product['name_'+lang]||it.product.name_en}</td>
+    <td><input type="number" min="0.001" step="0.001" value="${it.qty}" style="width:100px;padding:6px;border:1px solid var(--border);border-radius:6px;font-family:var(--font-mono)" onchange='setQty(${id}, this.value)'></td>
+    <td><button type="button" class="btn btn-sm" onclick='rmItem(${id})'><i class="ti ti-x"></i></button></td>
+  </tr>`).join('');
+}
+function setQty(id, v) { const it = items.get(id); if (it) { it.qty = parseFloat(v)||1; } }
+function rmItem(id) { items.delete(id); renderItems(); }
+
+document.getElementById('xferForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const from = parseInt(document.getElementById('xfer_from').value);
+  const to = parseInt(document.getElementById('xfer_to').value);
+  if (from === to) return toast('Choose different branches','warning');
+  if (items.size === 0) return toast('Add at least one product','warning');
+  try {
+    const payload = {
+      from_branch_id: from, to_branch_id: to,
+      items: [...items.values()].map(it => ({ product_id: it.product.id, quantity: it.qty })),
+      notes: document.getElementById('xfer_notes').value,
+    };
+    const r = await API.post('/api/inventory/transfer', payload);
+    toast('Transfer completed: ' + r.ref_no, 'success');
+    items.clear(); renderItems(); Modal.close('xferModal');
+  } catch(err) { toast(err.message, 'error'); }
+});
+
+init();
+</script>

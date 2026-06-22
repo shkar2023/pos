@@ -1,0 +1,92 @@
+<div class="page-header">
+  <h1 class="page-title"><i class="ti ti-user-shield"></i><div><%= t('nav.users') %><div class="page-subtitle">User accounts and roles</div></div></h1>
+  <div class="page-actions">
+    <% if (currentUser.role === 'admin') { %><button class="btn btn-primary" onclick="resetForm(); Modal.open('userModal')" data-testid="btn-add-user"><i class="ti ti-plus"></i> Add User</button><% } %>
+  </div>
+</div>
+
+<div class="card"><div class="table-wrap"><table class="table" data-testid="users-table">
+  <thead><tr><th>#</th><th>Name</th><th>Email</th><th>Role</th><th>Phone</th><th>Branch</th><th>Language</th><th>Last Login</th><th>Status</th><th>Actions</th></tr></thead>
+  <tbody id="usersBody"><tr><td colspan="10" class="empty">Loading...</td></tr></tbody>
+</table></div></div>
+
+<div class="modal-overlay" id="userModal"><div class="modal">
+  <div class="modal-header"><div class="modal-title" id="userTitle">Add User</div><button class="modal-close" onclick="Modal.close('userModal')"><i class="ti ti-x"></i></button></div>
+  <form id="userForm">
+    <input type="hidden" id="u_id">
+    <div class="modal-body">
+      <div class="form-group"><label class="form-label">Full Name *</label><input class="form-control" id="u_name" required data-testid="u-name"></div>
+      <div class="form-group"><label class="form-label">Email *</label><input class="form-control" id="u_email" type="email" required data-testid="u-email"></div>
+      <div class="form-group"><label class="form-label">Password <span style="font-weight:400;color:var(--text-tertiary)">(leave empty to keep current)</span></label><input class="form-control" id="u_password" type="password" data-testid="u-password"></div>
+      <div class="form-grid">
+        <div class="form-group"><label class="form-label">Role</label>
+          <select class="form-select" id="u_role" data-testid="u-role">
+            <option value="cashier">Cashier</option><option value="accountant">Accountant</option><option value="manager">Manager</option><option value="admin">Admin</option>
+          </select>
+        </div>
+        <div class="form-group"><label class="form-label">Branch</label>
+          <select class="form-select" id="u_branch"><option value="">—</option><% branches.forEach(b => { %><option value="<%= b.id %>"><%= b.name %></option><% }) %></select>
+        </div>
+      </div>
+      <div class="form-grid">
+        <div class="form-group"><label class="form-label">Phone</label><input class="form-control" id="u_phone"></div>
+        <div class="form-group"><label class="form-label">Default Language</label>
+          <select class="form-select" id="u_lang"><option value="en">English</option><option value="ar">العربية</option><option value="ku">کوردی</option></select>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer"><button type="button" class="btn" onclick="Modal.close('userModal')">Cancel</button><button type="submit" class="btn btn-primary" data-testid="u-submit">Save</button></div>
+  </form>
+</div></div>
+
+<script>
+const ME = <%- JSON.stringify(currentUser) %>;
+async function loadUsers() {
+  const { data } = await API.get('/api/users');
+  const b = document.getElementById('usersBody');
+  if (!data.length) { b.innerHTML = '<tr><td colspan="10" class="empty">No users</td></tr>'; return; }
+  b.innerHTML = data.map(u => `<tr data-testid="user-row-${u.id}">
+    <td>${u.id}</td><td><strong>${u.name}</strong></td><td>${u.email}</td>
+    <td><span class="badge ${u.role==='admin'?'danger':(u.role==='manager'?'purple':(u.role==='accountant'?'info':'success'))}">${u.role}</span></td>
+    <td>${u.phone||'—'}</td><td>${u.branch_id||'—'}</td><td>${u.language}</td>
+    <td>${u.last_login_at?fmt.date(u.last_login_at):'Never'}</td>
+    <td><span class="badge ${u.is_active?'success':'danger'}">${u.is_active?'active':'disabled'}</span></td>
+    <td>${ME.role==='admin'?`<button class="btn btn-sm" onclick='editU(${JSON.stringify(u)})'><i class="ti ti-edit"></i></button>${u.id!==ME.id?`<button class="btn btn-sm" onclick='delU(${u.id})'><i class="ti ti-trash"></i></button>`:''}`:''}</td>
+  </tr>`).join('');
+}
+function resetForm() { document.getElementById('userTitle').textContent = 'Add User'; document.getElementById('userForm').reset(); document.getElementById('u_id').value=''; document.getElementById('u_role').value='cashier'; document.getElementById('u_lang').value='en'; }
+function editU(u) {
+  document.getElementById('userTitle').textContent = 'Edit User';
+  document.getElementById('u_id').value=u.id;
+  document.getElementById('u_name').value=u.name;
+  document.getElementById('u_email').value=u.email;
+  document.getElementById('u_password').value='';
+  document.getElementById('u_role').value=u.role;
+  document.getElementById('u_branch').value=u.branch_id||'';
+  document.getElementById('u_phone').value=u.phone||'';
+  document.getElementById('u_lang').value=u.language;
+  Modal.open('userModal');
+}
+async function delU(id) { if (!confirmAction('Disable this user?')) return; await API.del('/api/users/'+id); toast('Done','success'); loadUsers(); }
+document.getElementById('userForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const id = document.getElementById('u_id').value;
+  const payload = {
+    name: document.getElementById('u_name').value,
+    email: document.getElementById('u_email').value,
+    role: document.getElementById('u_role').value,
+    branch_id: parseInt(document.getElementById('u_branch').value)||null,
+    phone: document.getElementById('u_phone').value,
+    language: document.getElementById('u_lang').value,
+    is_active: true,
+  };
+  const pw = document.getElementById('u_password').value;
+  if (pw) payload.password = pw;
+  try {
+    if (id) await API.put('/api/users/'+id, payload);
+    else { if (!pw) return toast('Password required for new user','warning'); await API.post('/api/users', payload); }
+    toast('Saved','success'); Modal.close('userModal'); loadUsers();
+  } catch(e){toast(e.message,'error');}
+});
+loadUsers();
+</script>

@@ -1,0 +1,55 @@
+<div class="page-header">
+  <h1 class="page-title"><i class="ti ti-receipt"></i><div><%= t('sales.title') %><div class="page-subtitle">All sales invoices</div></div></h1>
+  <div class="page-actions">
+    <a href="/pos" class="btn btn-primary" data-testid="sales-new"><i class="ti ti-plus"></i> <%= t('dashboard.new_sale') %></a>
+  </div>
+</div>
+
+<div class="filter-bar">
+  <input class="form-control" id="searchInput" placeholder="Invoice #" data-testid="sales-search">
+  <input class="form-control" id="fromDate" type="date" data-testid="sales-from">
+  <input class="form-control" id="toDate" type="date" data-testid="sales-to">
+  <select class="form-select" id="statusFilter" data-testid="sales-status">
+    <option value=""><%= t('common.all') %></option>
+    <option value="completed"><%= t('sales.completed') %></option>
+    <option value="held"><%= t('sales.held') %></option>
+    <option value="cancelled"><%= t('sales.cancelled') %></option>
+    <option value="returned"><%= t('sales.returned') %></option>
+  </select>
+  <button class="btn" onclick="loadSales()" data-testid="sales-apply"><i class="ti ti-filter"></i> Filter</button>
+</div>
+
+<div class="card">
+  <div class="table-wrap"><table class="table" data-testid="sales-table">
+    <thead><tr><th><%= t('sales.invoice_no') %></th><th><%= t('common.date') %></th><th><%= t('sales.customer') %></th><th>Items</th><th><%= t('common.total') %></th><th>Payment</th><th>Status</th><th>Actions</th></tr></thead>
+    <tbody id="salesBody"><tr><td colspan="8" class="empty">Loading...</td></tr></tbody>
+  </table></div>
+</div>
+
+<script>
+async function loadSales() {
+  const params = new URLSearchParams();
+  const s = document.getElementById('searchInput').value; if (s) params.set('search', s);
+  const f = document.getElementById('fromDate').value; if (f) params.set('from', f);
+  const t = document.getElementById('toDate').value; if (t) params.set('to', t);
+  const st = document.getElementById('statusFilter').value; if (st) params.set('status', st);
+  const { data } = await API.get('/api/sales?' + params);
+  const body = document.getElementById('salesBody');
+  if (!data.length) { body.innerHTML = '<tr><td colspan="8" class="empty">No sales found</td></tr>'; return; }
+  body.innerHTML = data.map(s => `<tr data-testid="sale-row-${s.id}">
+    <td><a href="/sales/${s.id}" style="color:var(--brand-primary);font-weight:600">${s.invoice_no}</a></td>
+    <td>${fmt.date(s.sale_date)}</td>
+    <td>${s.customer_name||'Walk-in'}</td>
+    <td>${s.items_count}</td>
+    <td class="num">${fmt.money(s.total)}</td>
+    <td><span class="badge ${s.payment_status==='paid'?'success':(s.payment_status==='partial'?'warning':'danger')}">${s.payment_status}</span></td>
+    <td><span class="badge ${s.sale_status==='completed'?'success':(s.sale_status==='returned'?'warning':(s.sale_status==='cancelled'?'danger':'info'))}">${s.sale_status}</span></td>
+    <td>
+      <a class="btn btn-sm" href="/sales/${s.id}" data-testid="view-${s.id}"><i class="ti ti-eye"></i></a>
+      <a class="btn btn-sm" href="/sales/${s.id}/print" target="_blank" data-testid="print-${s.id}"><i class="ti ti-printer"></i></a>
+    </td>
+  </tr>`).join('');
+}
+document.getElementById('searchInput').addEventListener('input', () => { clearTimeout(window._ssr); window._ssr = setTimeout(loadSales, 300); });
+loadSales();
+</script>

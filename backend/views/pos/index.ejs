@@ -1,0 +1,350 @@
+<div class="pos-shell">
+  <div class="pos-products">
+    <div class="pos-header">
+      <span class="brand-mark" style="background:linear-gradient(135deg,#0d9488,#f59e0b);color:white;"><i class="ti ti-bolt-filled"></i></span>
+      <div class="pos-title"><%= t('pos.title') %></div>
+      <a href="/" class="back-link" data-testid="pos-back"><i class="ti ti-arrow-<%= isRTL?'right':'left' %>"></i> <%= t('nav.dashboard') %></a>
+    </div>
+
+    <div class="pos-search-bar">
+      <input type="text" id="posSearch" placeholder="<%= t('pos.scan_barcode') %>" data-testid="pos-search" autofocus>
+    </div>
+
+    <div class="pos-cat-strip" data-testid="pos-cat-strip">
+      <button class="pos-cat-chip active" data-cat="" data-testid="pos-cat-all"><span class="dot"></span><%= t('pos.all_categories') %></button>
+      <% categories.forEach(c => { %>
+        <button class="pos-cat-chip" data-cat="<%= c.id %>" data-testid="pos-cat-<%= c.id %>" style="color:<%= c.color %>"><span class="dot" style="background:<%= c.color %>"></span><%= c['name_' + lang] || c.name_en %></button>
+      <% }) %>
+    </div>
+
+    <div class="pos-products-grid" id="posProductsGrid" data-testid="pos-products-grid">
+      <div class="empty" style="grid-column:1/-1"><div class="spinner"></div></div>
+    </div>
+  </div>
+
+  <div class="pos-cart">
+    <div class="pos-cart-header">
+      <i class="ti ti-shopping-cart"></i>
+      <h3><%= t('pos.cart') %></h3>
+      <span class="items-count" id="cartItemsCount" data-testid="cart-items-count">0</span>
+    </div>
+    <div class="pos-customer-section">
+      <label class="form-label"><%= t('pos.customer') %></label>
+      <select class="form-select" id="posCustomer" data-testid="pos-customer">
+        <% customers.forEach(c => { %>
+          <option value="<%= c.id %>"><%= c.name %> <%= c.phone ? '· ' + c.phone : '' %></option>
+        <% }) %>
+      </select>
+    </div>
+    <div class="pos-cart-items" id="posCartItems" data-testid="pos-cart-items">
+      <div class="pos-cart-empty"><i class="ti ti-shopping-cart-off" style="font-size:32px;display:block;margin-bottom:8px"></i><%= t('pos.cart_empty') %></div>
+    </div>
+    <div class="pos-cart-summary">
+      <div class="pcs-row"><span><%= t('common.subtotal') %></span><span class="num" id="cartSubtotal">$0.00</span></div>
+      <div class="pcs-row"><span><%= t('common.discount') %></span><span class="num" id="cartDiscount">$0.00</span></div>
+      <div class="pcs-row"><span><%= t('common.tax') %></span><span class="num" id="cartTax">$0.00</span></div>
+      <div class="pcs-row total"><span><%= t('common.total') %></span><span id="cartTotal">$0.00</span></div>
+    </div>
+    <div class="pos-cart-actions">
+      <button class="btn" id="btnHold" data-testid="btn-hold"><i class="ti ti-clock"></i> <%= t('pos.hold') %></button>
+      <button class="btn btn-danger" id="btnClear" data-testid="btn-clear"><i class="ti ti-trash"></i> <%= t('pos.clear') %></button>
+      <button class="btn btn-primary pay-btn" id="btnPay" data-testid="btn-pay"><i class="ti ti-credit-card"></i> <%= t('pos.pay') %> <span id="payAmount" style="margin-inline-start:8px;font-family:var(--font-mono)">$0.00</span></button>
+    </div>
+  </div>
+</div>
+
+<!-- Payment Modal -->
+<div class="modal-overlay" id="paymentModal" data-testid="payment-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title"><%= t('pos.checkout') %></div>
+      <button class="modal-close" onclick="Modal.close('paymentModal')" data-testid="payment-close"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label"><%= t('pos.payment_method') %></label>
+        <div class="payment-methods" data-testid="payment-methods">
+          <button class="pm-btn active" data-method="cash" data-testid="pm-cash"><i class="ti ti-cash"></i> <%= t('pos.cash') %></button>
+          <button class="pm-btn" data-method="card" data-testid="pm-card"><i class="ti ti-credit-card"></i> <%= t('pos.card') %></button>
+          <button class="pm-btn" data-method="bank" data-testid="pm-bank"><i class="ti ti-building-bank"></i> <%= t('pos.bank') %></button>
+          <button class="pm-btn" data-method="credit" data-testid="pm-credit"><i class="ti ti-receipt-2"></i> <%= t('pos.credit') %></button>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label"><%= t('common.total') %></label>
+        <input class="form-control" id="payTotal" type="text" readonly style="font-family:var(--font-mono);font-size:22px;font-weight:700;color:var(--brand-primary)" data-testid="pay-total">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label"><%= t('pos.amount_paid') %></label>
+        <input class="form-control" id="payPaid" type="number" step="0.01" style="font-family:var(--font-mono);font-size:18px;font-weight:700" data-testid="pay-paid">
+      </div>
+
+      <div class="qa-grid" data-testid="payment-quick-amounts">
+        <button class="qa-btn" data-qa="exact">Exact</button>
+        <button class="qa-btn" data-qa="5">+5</button>
+        <button class="qa-btn" data-qa="10">+10</button>
+        <button class="qa-btn" data-qa="20">+20</button>
+        <button class="qa-btn" data-qa="50">+50</button>
+        <button class="qa-btn" data-qa="100">+100</button>
+        <button class="qa-btn" data-qa="next5">↑5</button>
+        <button class="qa-btn" data-qa="next10">↑10</button>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label"><%= t('pos.change') %></label>
+        <input class="form-control" id="payChange" type="text" readonly style="font-family:var(--font-mono);font-size:20px;font-weight:700;color:var(--success)" data-testid="pay-change">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="Modal.close('paymentModal')" data-testid="pay-cancel"><%= t('common.cancel') %></button>
+      <button class="btn btn-primary" id="completeSaleBtn" data-testid="complete-sale-btn"><i class="ti ti-check"></i> <%= t('pos.complete_sale') %></button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const lang = '<%= lang %>';
+  const cartEl = document.getElementById('posCartItems');
+  const itemsCountEl = document.getElementById('cartItemsCount');
+  const subEl = document.getElementById('cartSubtotal');
+  const discEl = document.getElementById('cartDiscount');
+  const taxEl = document.getElementById('cartTax');
+  const totEl = document.getElementById('cartTotal');
+  const payAmount = document.getElementById('payAmount');
+
+  let allProducts = [];
+  let currentCat = '';
+  const cart = new Map(); // product_id -> {product, qty}
+
+  function pickName(p) { return p['name_' + lang] || p.name_en; }
+
+  async function loadProducts() {
+    try {
+      const { data } = await API.get('/api/products?limit=200&status=active');
+      allProducts = data;
+      renderProducts();
+    } catch (e) { toast(e.message, 'error'); }
+  }
+
+  function renderProducts() {
+    const search = document.getElementById('posSearch').value.toLowerCase().trim();
+    const grid = document.getElementById('posProductsGrid');
+    const filtered = allProducts.filter(p => {
+      if (currentCat && String(p.category_id) !== String(currentCat)) return false;
+      if (search) {
+        const hay = `${p.name_en} ${p.name_ar||''} ${p.name_ku||''} ${p.sku} ${p.barcode||''}`.toLowerCase();
+        if (!hay.includes(search)) return false;
+      }
+      return true;
+    });
+    if (filtered.length === 0) {
+      grid.innerHTML = '<div class="empty" style="grid-column:1/-1"><i class="ti ti-package-off"></i><p>No products found</p></div>';
+      return;
+    }
+    grid.innerHTML = filtered.map(p => {
+      const stock = parseFloat(p.stock_qty) || 0;
+      const isOut = p.track_stock && stock <= 0;
+      const initial = (pickName(p) || '?').charAt(0).toUpperCase();
+      return `<div class="pos-product ${isOut?'out-of-stock':''}" data-id="${p.id}" data-testid="pos-product-${p.id}">
+        <div class="pp-icon">${initial}</div>
+        <div class="pp-name">${pickName(p)}</div>
+        <div class="pp-price">${fmt.money(p.sell_price)}</div>
+        <div class="pp-stock">${p.track_stock ? fmt.num(stock) + ' ' + (p.unit_code||'pcs') : '—'}</div>
+      </div>`;
+    }).join('');
+    grid.querySelectorAll('.pos-product').forEach(el => {
+      el.addEventListener('click', () => {
+        if (el.classList.contains('out-of-stock')) return;
+        const p = allProducts.find(x => String(x.id) === el.dataset.id);
+        if (p) addToCart(p);
+      });
+    });
+  }
+
+  function addToCart(p) {
+    const cur = cart.get(p.id) || { product: p, qty: 0 };
+    cur.qty += 1;
+    cart.set(p.id, cur);
+    renderCart();
+  }
+
+  function renderCart() {
+    if (cart.size === 0) {
+      cartEl.innerHTML = '<div class="pos-cart-empty"><i class="ti ti-shopping-cart-off" style="font-size:32px;display:block;margin-bottom:8px"></i>Cart is empty</div>';
+      itemsCountEl.textContent = '0';
+    } else {
+      const items = [...cart.values()];
+      cartEl.innerHTML = items.map(it => {
+        const total = it.qty * parseFloat(it.product.sell_price);
+        const initial = (pickName(it.product) || '?').charAt(0).toUpperCase();
+        return `<div class="pos-cart-item" data-id="${it.product.id}" data-testid="cart-row-${it.product.id}">
+          <div class="pci-img">${initial}</div>
+          <div class="pci-info">
+            <div class="pci-name">${pickName(it.product)}</div>
+            <div class="pci-price">${fmt.money(it.product.sell_price)} × ${it.qty} = ${fmt.money(total)}</div>
+          </div>
+          <div class="pci-qty">
+            <button data-act="dec" data-testid="qty-dec-${it.product.id}">−</button>
+            <input type="number" value="${it.qty}" min="1" data-act="set" data-testid="qty-input-${it.product.id}">
+            <button data-act="inc" data-testid="qty-inc-${it.product.id}">+</button>
+          </div>
+          <button class="pci-remove" data-act="rm" data-testid="cart-remove-${it.product.id}"><i class="ti ti-trash"></i></button>
+        </div>`;
+      }).join('');
+      itemsCountEl.textContent = items.reduce((s, it) => s + it.qty, 0);
+      cartEl.querySelectorAll('.pos-cart-item').forEach(el => {
+        const id = parseInt(el.dataset.id);
+        el.querySelector('[data-act=dec]').addEventListener('click', () => changeQty(id, -1));
+        el.querySelector('[data-act=inc]').addEventListener('click', () => changeQty(id, 1));
+        el.querySelector('[data-act=rm]').addEventListener('click', () => { cart.delete(id); renderCart(); });
+        el.querySelector('[data-act=set]').addEventListener('change', (e) => {
+          const v = parseInt(e.target.value) || 1;
+          const it = cart.get(id);
+          if (it) { it.qty = Math.max(1, v); renderCart(); }
+        });
+      });
+    }
+    computeTotals();
+  }
+
+  function changeQty(id, delta) {
+    const it = cart.get(id);
+    if (!it) return;
+    it.qty += delta;
+    if (it.qty <= 0) cart.delete(id);
+    renderCart();
+  }
+
+  function computeTotals() {
+    let subtotal = 0, tax = 0;
+    for (const it of cart.values()) {
+      const line = it.qty * parseFloat(it.product.sell_price);
+      subtotal += line;
+      tax += line * (parseFloat(it.product.tax_rate) || 0) / 100;
+    }
+    const discount = 0;
+    const total = subtotal - discount + tax;
+    subEl.textContent = fmt.money(subtotal);
+    discEl.textContent = fmt.money(discount);
+    taxEl.textContent = fmt.money(tax);
+    totEl.textContent = fmt.money(total);
+    payAmount.textContent = fmt.money(total);
+    return { subtotal, discount, tax, total };
+  }
+
+  // Cat filter
+  document.querySelectorAll('.pos-cat-chip').forEach(b => {
+    b.addEventListener('click', () => {
+      document.querySelectorAll('.pos-cat-chip').forEach(x => x.classList.remove('active'));
+      b.classList.add('active');
+      currentCat = b.dataset.cat;
+      renderProducts();
+    });
+  });
+
+  // Search
+  document.getElementById('posSearch').addEventListener('input', renderProducts);
+  // Barcode scan: Enter triggers lookup
+  document.getElementById('posSearch').addEventListener('keydown', async (e) => {
+    if (e.key === 'Enter') {
+      const code = e.target.value.trim();
+      if (!code) return;
+      try {
+        const r = await API.get('/api/products/barcode/' + encodeURIComponent(code));
+        if (r.data) { addToCart(r.data); e.target.value=''; renderProducts(); }
+      } catch(err) {
+        // Not a barcode, treat as search; do nothing extra
+      }
+    }
+  });
+
+  document.getElementById('btnClear').addEventListener('click', () => {
+    if (cart.size === 0) return;
+    if (confirmAction('Clear cart?')) { cart.clear(); renderCart(); }
+  });
+
+  document.getElementById('btnHold').addEventListener('click', async () => {
+    if (cart.size === 0) return toast('Cart is empty', 'warning');
+    await submitSale('held', 0);
+  });
+
+  // Payment modal
+  document.getElementById('btnPay').addEventListener('click', () => {
+    if (cart.size === 0) return toast('Cart is empty', 'warning');
+    const { total } = computeTotals();
+    document.getElementById('payTotal').value = total.toFixed(2);
+    document.getElementById('payPaid').value = total.toFixed(2);
+    document.getElementById('payChange').value = '0.00';
+    Modal.open('paymentModal');
+  });
+
+  document.querySelectorAll('.pm-btn').forEach(b => {
+    b.addEventListener('click', () => {
+      document.querySelectorAll('.pm-btn').forEach(x => x.classList.remove('active'));
+      b.classList.add('active');
+    });
+  });
+
+  document.querySelectorAll('.qa-btn').forEach(b => {
+    b.addEventListener('click', () => {
+      const total = parseFloat(document.getElementById('payTotal').value) || 0;
+      const paidIn = document.getElementById('payPaid');
+      const cur = parseFloat(paidIn.value) || 0;
+      const qa = b.dataset.qa;
+      let next = cur;
+      if (qa === 'exact') next = total;
+      else if (qa.startsWith('next')) {
+        const step = parseInt(qa.replace('next',''));
+        next = Math.ceil(total / step) * step;
+      } else next = cur + parseFloat(qa);
+      paidIn.value = next.toFixed(2);
+      paidIn.dispatchEvent(new Event('input'));
+    });
+  });
+
+  document.getElementById('payPaid').addEventListener('input', () => {
+    const total = parseFloat(document.getElementById('payTotal').value) || 0;
+    const paid = parseFloat(document.getElementById('payPaid').value) || 0;
+    const change = Math.max(0, paid - total);
+    document.getElementById('payChange').value = change.toFixed(2);
+  });
+
+  document.getElementById('completeSaleBtn').addEventListener('click', async () => {
+    const paid = parseFloat(document.getElementById('payPaid').value) || 0;
+    const method = document.querySelector('.pm-btn.active')?.dataset.method || 'cash';
+    await submitSale('completed', paid, method);
+  });
+
+  async function submitSale(status, paid, method='cash') {
+    const items = [...cart.values()].map(it => ({
+      product_id: it.product.id,
+      quantity: it.qty,
+      unit_price: parseFloat(it.product.sell_price),
+      tax: it.qty * parseFloat(it.product.sell_price) * (parseFloat(it.product.tax_rate)||0) / 100,
+    }));
+    try {
+      const r = await API.post('/api/sales', {
+        customer_id: parseInt(document.getElementById('posCustomer').value),
+        items,
+        paid_amount: paid,
+        payment_method: method,
+        sale_status: status,
+      });
+      toast(`${status === 'held' ? 'Held' : 'Sale completed'}: ${r.invoice_no}`, 'success');
+      cart.clear(); renderCart();
+      Modal.close('paymentModal');
+      if (status === 'completed') {
+        if (confirmAction('Print receipt?')) {
+          window.open('/sales/' + r.id + '/print', '_blank');
+        }
+      }
+      loadProducts(); // refresh stocks
+    } catch (e) { toast(e.message, 'error'); }
+  }
+
+  loadProducts();
+})();
+</script>

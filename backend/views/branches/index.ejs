@@ -1,0 +1,70 @@
+<div class="page-header">
+  <h1 class="page-title"><i class="ti ti-building"></i><div><%= t('nav.branches') %><div class="page-subtitle">Stores & warehouses</div></div></h1>
+  <div class="page-actions"><button class="btn btn-primary" onclick="resetForm(); Modal.open('brModal')" data-testid="btn-add-br"><i class="ti ti-plus"></i> Add Branch</button></div>
+</div>
+
+<div class="card"><div class="table-wrap"><table class="table" data-testid="br-table">
+  <thead><tr><th>#</th><th>Name</th><th>Code</th><th>Address</th><th>Phone</th><th>Type</th><th>Status</th><th>Actions</th></tr></thead>
+  <tbody id="brBody"><tr><td colspan="8" class="empty">Loading...</td></tr></tbody>
+</table></div></div>
+
+<div class="modal-overlay" id="brModal"><div class="modal">
+  <div class="modal-header"><div class="modal-title" id="brTitle">Add Branch</div><button class="modal-close" onclick="Modal.close('brModal')"><i class="ti ti-x"></i></button></div>
+  <form id="brForm">
+    <input type="hidden" id="br_id">
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-group"><label class="form-label">Name *</label><input class="form-control" id="br_name" required data-testid="br-name"></div>
+        <div class="form-group"><label class="form-label">Code *</label><input class="form-control" id="br_code" required data-testid="br-code"></div>
+      </div>
+      <div class="form-group"><label class="form-label">Address</label><input class="form-control" id="br_address"></div>
+      <div class="form-group"><label class="form-label">Phone</label><input class="form-control" id="br_phone"></div>
+      <div class="form-group"><label style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="br_warehouse"> Warehouse (no sales)</label></div>
+    </div>
+    <div class="modal-footer"><button type="button" class="btn" onclick="Modal.close('brModal')">Cancel</button><button type="submit" class="btn btn-primary" data-testid="br-submit">Save</button></div>
+  </form>
+</div></div>
+
+<script>
+async function loadBr() {
+  const { data } = await API.get('/api/branches');
+  const b = document.getElementById('brBody');
+  if (!data.length) { b.innerHTML = '<tr><td colspan="8" class="empty">No branches</td></tr>'; return; }
+  b.innerHTML = data.map(br => `<tr data-testid="br-row-${br.id}">
+    <td>${br.id}</td><td><strong>${br.name}</strong></td><td><code>${br.code}</code></td>
+    <td>${br.address||'—'}</td><td>${br.phone||'—'}</td>
+    <td><span class="badge ${br.is_warehouse?'info':'success'}">${br.is_warehouse?'Warehouse':'Store'}</span></td>
+    <td><span class="badge ${br.is_active?'success':'danger'}">${br.is_active?'Active':'Disabled'}</span></td>
+    <td><button class="btn btn-sm" onclick='editB(${JSON.stringify(br)})'><i class="ti ti-edit"></i></button></td>
+  </tr>`).join('');
+}
+function resetForm() { document.getElementById('brTitle').textContent='Add Branch'; document.getElementById('brForm').reset(); document.getElementById('br_id').value=''; }
+function editB(br) {
+  document.getElementById('brTitle').textContent='Edit Branch';
+  document.getElementById('br_id').value=br.id;
+  document.getElementById('br_name').value=br.name;
+  document.getElementById('br_code').value=br.code;
+  document.getElementById('br_address').value=br.address||'';
+  document.getElementById('br_phone').value=br.phone||'';
+  document.getElementById('br_warehouse').checked = !!br.is_warehouse;
+  Modal.open('brModal');
+}
+document.getElementById('brForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const id = document.getElementById('br_id').value;
+  const payload = {
+    name: document.getElementById('br_name').value,
+    code: document.getElementById('br_code').value,
+    address: document.getElementById('br_address').value,
+    phone: document.getElementById('br_phone').value,
+    is_warehouse: document.getElementById('br_warehouse').checked,
+    is_active: true,
+  };
+  try {
+    if (id) await API.put('/api/branches/'+id, payload);
+    else await API.post('/api/branches', payload);
+    toast('Saved','success'); Modal.close('brModal'); loadBr();
+  } catch(e){toast(e.message,'error');}
+});
+loadBr();
+</script>

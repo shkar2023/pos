@@ -1,0 +1,69 @@
+<div class="page-header">
+  <h1 class="page-title"><i class="ti ti-coin"></i><div><%= t('expenses.title') %><div class="page-subtitle">Track business expenses</div></div></h1>
+  <div class="page-actions"><button class="btn btn-primary" onclick="Modal.open('expModal')" data-testid="btn-add-exp"><i class="ti ti-plus"></i> <%= t('expenses.add') %></button></div>
+</div>
+
+<div class="filter-bar">
+  <input class="form-control" id="fromDate" type="date">
+  <input class="form-control" id="toDate" type="date">
+  <select class="form-select" id="catFilter">
+    <option value="">All categories</option>
+    <% categories.forEach(c => { %><option value="<%= c.id %>"><%= c.name %></option><% }) %>
+  </select>
+  <button class="btn" onclick="loadExp()"><i class="ti ti-filter"></i> Filter</button>
+</div>
+
+<div class="card"><div class="table-wrap"><table class="table" data-testid="exp-table">
+  <thead><tr><th>Ref</th><th>Date</th><th>Category</th><th>Description</th><th>Branch</th><th>Amount</th><th>By</th></tr></thead>
+  <tbody id="expBody"><tr><td colspan="7" class="empty">Loading...</td></tr></tbody>
+</table></div></div>
+
+<div class="modal-overlay" id="expModal"><div class="modal">
+  <div class="modal-header"><div class="modal-title">New Expense</div><button class="modal-close" onclick="Modal.close('expModal')"><i class="ti ti-x"></i></button></div>
+  <form id="expForm" data-testid="exp-form">
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-group"><label class="form-label">Category</label><select class="form-select" id="e_cat" data-testid="e-cat"><% categories.forEach(c => { %><option value="<%= c.id %>"><%= c.name %></option><% }) %></select></div>
+        <div class="form-group"><label class="form-label">Branch</label><select class="form-select" id="e_branch" data-testid="e-branch"><% branches.forEach(b => { %><option value="<%= b.id %>"><%= b.name %></option><% }) %></select></div>
+      </div>
+      <div class="form-grid">
+        <div class="form-group"><label class="form-label">Date</label><input class="form-control" id="e_date" type="date" required data-testid="e-date"></div>
+        <div class="form-group"><label class="form-label">Amount</label><input class="form-control" id="e_amount" type="number" step="0.01" required data-testid="e-amount"></div>
+      </div>
+      <div class="form-group"><label class="form-label">Description</label><input class="form-control" id="e_desc" data-testid="e-desc"></div>
+    </div>
+    <div class="modal-footer"><button type="button" class="btn" onclick="Modal.close('expModal')">Cancel</button><button type="submit" class="btn btn-primary" data-testid="e-submit"><%= t('common.save') %></button></div>
+  </form>
+</div></div>
+
+<script>
+document.getElementById('e_date').value = new Date().toISOString().slice(0,10);
+async function loadExp() {
+  const params = new URLSearchParams();
+  const f = document.getElementById('fromDate').value; if (f) params.set('from', f);
+  const t = document.getElementById('toDate').value; if (t) params.set('to', t);
+  const c = document.getElementById('catFilter').value; if (c) params.set('category', c);
+  const { data } = await API.get('/api/expenses?' + params);
+  const body = document.getElementById('expBody');
+  if (!data.length) { body.innerHTML = '<tr><td colspan="7" class="empty">No expenses</td></tr>'; return; }
+  body.innerHTML = data.map(e => `<tr data-testid="exp-row-${e.id}">
+    <td><strong>${e.ref_no}</strong></td><td>${e.expense_date}</td><td>${e.category_name||'—'}</td>
+    <td>${e.description||'—'}</td><td>${e.branch_name||'—'}</td>
+    <td class="num">${fmt.money(e.amount)}</td><td>${e.user_name||'—'}</td>
+  </tr>`).join('');
+}
+document.getElementById('expForm').addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  try {
+    await API.post('/api/expenses', {
+      category_id: parseInt(document.getElementById('e_cat').value),
+      branch_id: parseInt(document.getElementById('e_branch').value),
+      expense_date: document.getElementById('e_date').value,
+      amount: parseFloat(document.getElementById('e_amount').value),
+      description: document.getElementById('e_desc').value,
+    });
+    toast('Saved','success'); Modal.close('expModal'); loadExp();
+  } catch(e){toast(e.message,'error');}
+});
+loadExp();
+</script>

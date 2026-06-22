@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>" dir="<%= isRTL?'rtl':'ltr' %>">
+<head>
+<meta charset="UTF-8">
+<title>Receipt</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<% if (isRTL) { %><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;600;700&display=swap" rel="stylesheet"><% } %>
+<style>
+body { font-family: <%= isRTL ? "'IBM Plex Sans Arabic',":'' %> 'Outfit', sans-serif; max-width: 320px; margin: 0 auto; padding: 16px; font-size: 12px; color: #000; }
+.receipt-header { text-align: center; padding-bottom: 12px; border-bottom: 2px dashed #000; margin-bottom: 12px; }
+.receipt-header h1 { font-size: 18px; font-weight: 700; margin: 0; }
+.receipt-header p { margin: 2px 0; font-size: 11px; }
+.invoice-info { margin: 8px 0 12px; border-bottom: 1px dashed #000; padding-bottom: 8px; }
+.invoice-info div { display: flex; justify-content: space-between; padding: 2px 0; }
+table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
+table th, table td { padding: 4px 2px; text-align: <%= isRTL?'right':'left' %>; font-size: 11px; }
+table th { border-bottom: 1px solid #000; font-weight: 700; }
+table .num { text-align: <%= isRTL?'left':'right' %>; font-family: 'JetBrains Mono', monospace; }
+.totals { border-top: 1px dashed #000; padding-top: 8px; }
+.totals div { display: flex; justify-content: space-between; padding: 2px 0; }
+.totals .grand { font-size: 16px; font-weight: 700; border-top: 2px solid #000; padding-top: 6px; margin-top: 4px; }
+.footer { text-align: center; margin-top: 16px; padding-top: 12px; border-top: 2px dashed #000; font-size: 11px; }
+.qr { display: flex; justify-content: center; margin: 12px 0; }
+@media print {
+  @page { margin: 0; size: 80mm auto; }
+  body { width: 80mm; max-width: 80mm; padding: 8px; }
+}
+.printbtn { padding: 8px 16px; margin: 16px auto; display: block; background: #0d9488; color: white; border: 0; border-radius: 6px; cursor: pointer; font-weight: 700; }
+@media print { .printbtn { display: none; } }
+</style>
+</head>
+<body>
+<div id="receipt">Loading…</div>
+<button class="printbtn" onclick="window.print()" data-testid="print-btn">Print Receipt</button>
+<script>
+async function load() {
+  const r = await fetch('/api/sales/<%= saleId %>', { credentials: 'same-origin' });
+  const { data } = await r.json();
+  const sett = await (await fetch('/api/settings', { credentials: 'same-origin' })).json();
+  const s = sett.data;
+  const html = `
+    <div class="receipt-header">
+      <h1>${s.company_name||'POS'}</h1>
+      <p>${s.company_address||''}</p>
+      <p>${s.company_phone||''}</p>
+    </div>
+    <div class="invoice-info">
+      <div><span>Invoice:</span><span><strong>${data.invoice_no}</strong></span></div>
+      <div><span>Date:</span><span>${new Date(data.sale_date).toLocaleString()}</span></div>
+      <div><span>Cashier:</span><span>${data.cashier_name||'—'}</span></div>
+      <div><span>Customer:</span><span>${data.customer_name||'Walk-in'}</span></div>
+    </div>
+    <table>
+      <thead><tr><th>Item</th><th>Qty</th><th class="num">Price</th><th class="num">Total</th></tr></thead>
+      <tbody>${data.items.map(it=>`<tr><td>${it.product_name}</td><td>${it.quantity}</td><td class="num">${parseFloat(it.unit_price).toFixed(2)}</td><td class="num">${parseFloat(it.total).toFixed(2)}</td></tr>`).join('')}</tbody>
+    </table>
+    <div class="totals">
+      <div><span>Subtotal:</span><span class="num">${parseFloat(data.subtotal).toFixed(2)}</span></div>
+      <div><span>Discount:</span><span class="num">-${parseFloat(data.discount_amount).toFixed(2)}</span></div>
+      <div><span>Tax:</span><span class="num">${parseFloat(data.tax_amount).toFixed(2)}</span></div>
+      <div class="grand"><span>TOTAL:</span><span class="num">${data.currency==='IQD'?Math.round(data.total)+' IQD':'$'+parseFloat(data.total).toFixed(2)}</span></div>
+      <div><span>Paid (${data.payment_method}):</span><span class="num">${parseFloat(data.paid_amount).toFixed(2)}</span></div>
+      <div><span>Change:</span><span class="num">${parseFloat(data.change_amount).toFixed(2)}</span></div>
+    </div>
+    <div class="footer">${s.receipt_footer||'Thank you for shopping with us!'}</div>
+  `;
+  document.getElementById('receipt').innerHTML = html;
+  setTimeout(() => window.print(), 400);
+}
+load();
+</script>
+</body>
+</html>

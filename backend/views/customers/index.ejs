@@ -1,0 +1,91 @@
+<div class="page-header">
+  <h1 class="page-title"><i class="ti ti-users"></i><div><%= t('customers.title') %><div class="page-subtitle">Manage customer database</div></div></h1>
+  <div class="page-actions"><button class="btn btn-primary" onclick="resetForm(); Modal.open('custModal')" data-testid="btn-add-cust"><i class="ti ti-plus"></i> <%= t('customers.add') %></button></div>
+</div>
+
+<div class="filter-bar"><input class="form-control" id="searchInput" placeholder="Search by name, phone, email" data-testid="cust-search"></div>
+
+<div class="card">
+  <div class="table-wrap"><table class="table" data-testid="cust-table">
+    <thead><tr><th>#</th><th>Name</th><th>Phone</th><th>Email</th><th>City</th><th>Group</th><th>Loyalty</th><th>Outstanding</th><th>Credit Limit</th><th>Actions</th></tr></thead>
+    <tbody id="custBody"><tr><td colspan="10" class="empty">Loading...</td></tr></tbody>
+  </table></div>
+</div>
+
+<div class="modal-overlay" id="custModal">
+  <div class="modal">
+    <div class="modal-header"><div class="modal-title" id="custTitle"><%= t('customers.add') %></div><button class="modal-close" onclick="Modal.close('custModal')"><i class="ti ti-x"></i></button></div>
+    <form id="custForm">
+      <input type="hidden" id="cust_id">
+      <div class="modal-body">
+        <div class="form-group"><label class="form-label">Name *</label><input class="form-control" id="cust_name" required data-testid="cust-name"></div>
+        <div class="form-grid">
+          <div class="form-group"><label class="form-label">Phone</label><input class="form-control" id="cust_phone" data-testid="cust-phone"></div>
+          <div class="form-group"><label class="form-label">Email</label><input class="form-control" id="cust_email" type="email" data-testid="cust-email"></div>
+        </div>
+        <div class="form-grid">
+          <div class="form-group"><label class="form-label">City</label><input class="form-control" id="cust_city"></div>
+          <div class="form-group"><label class="form-label">Group</label><select class="form-select" id="cust_group"><option>regular</option><option>vip</option><option>wholesale</option></select></div>
+        </div>
+        <div class="form-group"><label class="form-label">Address</label><input class="form-control" id="cust_address"></div>
+        <div class="form-group"><label class="form-label">Credit Limit</label><input class="form-control" id="cust_credit" type="number" step="0.01" value="0"></div>
+      </div>
+      <div class="modal-footer"><button type="button" class="btn" onclick="Modal.close('custModal')"><%= t('common.cancel') %></button><button type="submit" class="btn btn-primary" data-testid="cust-submit"><%= t('common.save') %></button></div>
+    </form>
+  </div>
+</div>
+
+<script>
+async function loadCust() {
+  const s = document.getElementById('searchInput').value;
+  const { data } = await API.get('/api/customers' + (s?`?search=${encodeURIComponent(s)}`:''));
+  const b = document.getElementById('custBody');
+  if (!data.length) { b.innerHTML = '<tr><td colspan="10" class="empty">No customers</td></tr>'; return; }
+  b.innerHTML = data.map(c => `<tr data-testid="cust-row-${c.id}">
+    <td>${c.id}</td><td><strong>${c.name}</strong></td><td>${c.phone||'—'}</td><td>${c.email||'—'}</td><td>${c.city||'—'}</td>
+    <td><span class="badge ${c.customer_group==='vip'?'purple':(c.customer_group==='wholesale'?'info':'success')}">${c.customer_group}</span></td>
+    <td class="num">${fmt.num(c.loyalty_points)}</td>
+    <td class="num">${fmt.money(c.outstanding_balance)}</td>
+    <td class="num">${fmt.money(c.credit_limit)}</td>
+    <td>
+      <button class="btn btn-sm" onclick='editC(${JSON.stringify(c)})'><i class="ti ti-edit"></i></button>
+      ${c.id!==1?`<button class="btn btn-sm" onclick='delC(${c.id})'><i class="ti ti-trash"></i></button>`:''}
+    </td>
+  </tr>`).join('');
+}
+function resetForm() { document.getElementById('custTitle').textContent = '<%= t("customers.add") %>'; document.getElementById('custForm').reset(); document.getElementById('cust_id').value=''; document.getElementById('cust_credit').value='0'; }
+function editC(c) {
+  document.getElementById('custTitle').textContent = 'Edit Customer';
+  document.getElementById('cust_id').value = c.id;
+  document.getElementById('cust_name').value = c.name||'';
+  document.getElementById('cust_phone').value = c.phone||'';
+  document.getElementById('cust_email').value = c.email||'';
+  document.getElementById('cust_city').value = c.city||'';
+  document.getElementById('cust_group').value = c.customer_group||'regular';
+  document.getElementById('cust_address').value = c.address||'';
+  document.getElementById('cust_credit').value = c.credit_limit||0;
+  Modal.open('custModal');
+}
+async function delC(id) { if (!confirmAction('Deactivate?')) return; await API.del('/api/customers/'+id); toast('Done','success'); loadCust(); }
+document.getElementById('custForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const id = document.getElementById('cust_id').value;
+  const payload = {
+    name: document.getElementById('cust_name').value,
+    phone: document.getElementById('cust_phone').value,
+    email: document.getElementById('cust_email').value,
+    city: document.getElementById('cust_city').value,
+    customer_group: document.getElementById('cust_group').value,
+    address: document.getElementById('cust_address').value,
+    credit_limit: parseFloat(document.getElementById('cust_credit').value)||0,
+    is_active: true,
+  };
+  try {
+    if (id) await API.put('/api/customers/'+id, payload);
+    else await API.post('/api/customers', payload);
+    toast('Saved','success'); Modal.close('custModal'); loadCust();
+  } catch(e){toast(e.message,'error');}
+});
+document.getElementById('searchInput').addEventListener('input', () => { clearTimeout(window._cs); window._cs = setTimeout(loadCust, 300); });
+loadCust();
+</script>

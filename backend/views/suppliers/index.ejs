@@ -1,0 +1,75 @@
+<div class="page-header">
+  <h1 class="page-title"><i class="ti ti-building-store"></i><div><%= t('suppliers.title') %><div class="page-subtitle">Manage your suppliers</div></div></h1>
+  <div class="page-actions"><button class="btn btn-primary" onclick="resetForm(); Modal.open('supModal')" data-testid="btn-add-sup"><i class="ti ti-plus"></i> <%= t('suppliers.add') %></button></div>
+</div>
+
+<div class="filter-bar"><input class="form-control" id="searchInput" placeholder="Search..." data-testid="sup-search"></div>
+
+<div class="card"><div class="table-wrap"><table class="table" data-testid="sup-table">
+  <thead><tr><th>#</th><th>Name</th><th>Contact</th><th>Phone</th><th>Email</th><th>City</th><th>Outstanding</th><th>Actions</th></tr></thead>
+  <tbody id="supBody"><tr><td colspan="8" class="empty">Loading...</td></tr></tbody>
+</table></div></div>
+
+<div class="modal-overlay" id="supModal"><div class="modal">
+  <div class="modal-header"><div class="modal-title" id="supTitle"><%= t('suppliers.add') %></div><button class="modal-close" onclick="Modal.close('supModal')"><i class="ti ti-x"></i></button></div>
+  <form id="supForm">
+    <input type="hidden" id="sup_id">
+    <div class="modal-body">
+      <div class="form-group"><label class="form-label">Name *</label><input class="form-control" id="sup_name" required data-testid="sup-name"></div>
+      <div class="form-grid">
+        <div class="form-group"><label class="form-label">Contact Person</label><input class="form-control" id="sup_contact"></div>
+        <div class="form-group"><label class="form-label">Phone</label><input class="form-control" id="sup_phone"></div>
+      </div>
+      <div class="form-grid">
+        <div class="form-group"><label class="form-label">Email</label><input class="form-control" id="sup_email" type="email"></div>
+        <div class="form-group"><label class="form-label">City</label><input class="form-control" id="sup_city"></div>
+      </div>
+      <div class="form-group"><label class="form-label">Address</label><input class="form-control" id="sup_address"></div>
+      <div class="form-group"><label class="form-label">Tax Number</label><input class="form-control" id="sup_tax"></div>
+    </div>
+    <div class="modal-footer"><button type="button" class="btn" onclick="Modal.close('supModal')"><%= t('common.cancel') %></button><button type="submit" class="btn btn-primary" data-testid="sup-submit"><%= t('common.save') %></button></div>
+  </form>
+</div></div>
+
+<script>
+async function loadSup() {
+  const s = document.getElementById('searchInput').value;
+  const { data } = await API.get('/api/suppliers' + (s?`?search=${encodeURIComponent(s)}`:''));
+  const b = document.getElementById('supBody');
+  if (!data.length) { b.innerHTML = '<tr><td colspan="8" class="empty">No suppliers</td></tr>'; return; }
+  b.innerHTML = data.map(s => `<tr data-testid="sup-row-${s.id}">
+    <td>${s.id}</td><td><strong>${s.name}</strong></td><td>${s.contact_person||'—'}</td><td>${s.phone||'—'}</td><td>${s.email||'—'}</td><td>${s.city||'—'}</td>
+    <td class="num">${fmt.money(s.outstanding_balance)}</td>
+    <td><button class="btn btn-sm" onclick='editS(${JSON.stringify(s)})'><i class="ti ti-edit"></i></button><button class="btn btn-sm" onclick='delS(${s.id})'><i class="ti ti-trash"></i></button></td>
+  </tr>`).join('');
+}
+function resetForm() { document.getElementById('supTitle').textContent='<%= t("suppliers.add") %>'; document.getElementById('supForm').reset(); document.getElementById('sup_id').value=''; }
+function editS(s) {
+  document.getElementById('supTitle').textContent='Edit Supplier';
+  document.getElementById('sup_id').value=s.id;
+  ['name','contact','phone','email','city','address','tax'].forEach(k => {
+    const el = document.getElementById('sup_'+k);
+    if (el) el.value = s[k==='contact'?'contact_person':(k==='tax'?'tax_no':k)] || '';
+  });
+  Modal.open('supModal');
+}
+async function delS(id) { if (!confirmAction('Deactivate?')) return; await API.del('/api/suppliers/'+id); toast('Done','success'); loadSup(); }
+document.getElementById('supForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const id = document.getElementById('sup_id').value;
+  const payload = {
+    name: document.getElementById('sup_name').value,
+    contact_person: document.getElementById('sup_contact').value,
+    phone: document.getElementById('sup_phone').value,
+    email: document.getElementById('sup_email').value,
+    city: document.getElementById('sup_city').value,
+    address: document.getElementById('sup_address').value,
+    tax_no: document.getElementById('sup_tax').value,
+    is_active: true,
+  };
+  try { if (id) await API.put('/api/suppliers/'+id, payload); else await API.post('/api/suppliers', payload); toast('Saved','success'); Modal.close('supModal'); loadSup(); }
+  catch(e){toast(e.message,'error');}
+});
+document.getElementById('searchInput').addEventListener('input', () => { clearTimeout(window._ss); window._ss = setTimeout(loadSup, 300); });
+loadSup();
+</script>
