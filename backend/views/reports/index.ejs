@@ -6,6 +6,37 @@
   <input class="form-control" id="fromDate" type="date" data-testid="rep-from">
   <input class="form-control" id="toDate" type="date" data-testid="rep-to">
   <button class="btn btn-primary" onclick="loadAll()" data-testid="rep-apply"><i class="ti ti-refresh"></i> Generate</button>
+  <div style="margin-inline-start:auto;display:flex;gap:6px">
+    <div class="lang-switcher" data-testid="export-sales-switcher">
+      <button type="button" class="btn"><i class="ti ti-file-export"></i> Sales Report <i class="ti ti-chevron-down"></i></button>
+      <div class="lang-menu">
+        <a id="exp_sales_xlsx" data-testid="exp-sales-xlsx"><i class="ti ti-file-spreadsheet" style="color:#16a34a"></i> Excel (.xlsx)</a>
+        <a id="exp_sales_pdf" data-testid="exp-sales-pdf"><i class="ti ti-file-type-pdf" style="color:#ef4444"></i> PDF</a>
+      </div>
+    </div>
+    <div class="lang-switcher" data-testid="export-pl-switcher">
+      <button type="button" class="btn"><i class="ti ti-file-export"></i> P&L <i class="ti ti-chevron-down"></i></button>
+      <div class="lang-menu">
+        <a id="exp_pl_xlsx" data-testid="exp-pl-xlsx"><i class="ti ti-file-spreadsheet" style="color:#16a34a"></i> Excel (.xlsx)</a>
+        <a id="exp_pl_pdf" data-testid="exp-pl-pdf"><i class="ti ti-file-type-pdf" style="color:#ef4444"></i> PDF</a>
+      </div>
+    </div>
+    <div class="lang-switcher" data-testid="export-top-switcher">
+      <button type="button" class="btn"><i class="ti ti-file-export"></i> Top Products <i class="ti ti-chevron-down"></i></button>
+      <div class="lang-menu">
+        <a id="exp_top_xlsx" data-testid="exp-top-xlsx"><i class="ti ti-file-spreadsheet" style="color:#16a34a"></i> Excel (.xlsx)</a>
+        <a id="exp_top_pdf" data-testid="exp-top-pdf"><i class="ti ti-file-type-pdf" style="color:#ef4444"></i> PDF</a>
+      </div>
+    </div>
+    <div class="lang-switcher" data-testid="export-inv-switcher">
+      <button type="button" class="btn"><i class="ti ti-file-export"></i> Inventory <i class="ti ti-chevron-down"></i></button>
+      <div class="lang-menu">
+        <a id="exp_inv_xlsx" data-testid="exp-inv-xlsx"><i class="ti ti-file-spreadsheet" style="color:#16a34a"></i> Excel (.xlsx)</a>
+        <a id="exp_inv_pdf" data-testid="exp-inv-pdf"><i class="ti ti-file-type-pdf" style="color:#ef4444"></i> PDF</a>
+      </div>
+    </div>
+    <a class="btn" id="exp_cust_xlsx" data-testid="exp-cust-xlsx"><i class="ti ti-file-spreadsheet" style="color:#16a34a"></i> Customers .xlsx</a>
+  </div>
 </div>
 
 <div class="stats-grid">
@@ -93,4 +124,31 @@ async function loadAll() {
   } catch (e) { toast(e.message, 'error'); }
 }
 loadAll();
+
+// Wire up export buttons
+function setExportLinks() {
+  const from = document.getElementById('fromDate').value;
+  const to = document.getElementById('toDate').value;
+  const q = new URLSearchParams({from, to}).toString();
+  const map = {
+    exp_sales_xlsx: '/api/reports/sales/export/excel?'+q,
+    exp_sales_pdf:  '/api/reports/sales/export/pdf?'+q,
+    exp_pl_xlsx:    '/api/reports/profit-loss/export/excel?'+q,
+    exp_pl_pdf:     '/api/reports/profit-loss/export/pdf?'+q,
+    exp_top_xlsx:   '/api/reports/top-products/export/excel?'+q,
+    exp_top_pdf:    '/api/reports/top-products/export/pdf?'+q,
+    exp_inv_xlsx:   '/api/reports/inventory/export/excel',
+    exp_inv_pdf:    '/api/reports/inventory/export/pdf',
+    exp_cust_xlsx:  '/api/reports/customers/export/excel',
+  };
+  for (const id of Object.keys(map)) {
+    const el = document.getElementById(id);
+    if (el) {
+      el.href = map[id];
+      el.onclick = (e) => { e.preventDefault(); window.location = map[id]; };
+    }
+  }
+}
+setExportLinks();
+['fromDate','toDate'].forEach(id => document.getElementById(id).addEventListener('change', setExportLinks));
 </script>

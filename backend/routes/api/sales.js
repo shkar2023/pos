@@ -3,7 +3,18 @@ const express = require('express');
 const { query, getOne, withTransaction } = require('../../config/db');
 const { requireRole } = require('../../middleware/auth');
 const { genRef, num } = require('../../config/helpers');
+const { startPDF, pdfHeader, pdfTable } = require('../../config/export');
 const router = express.Router();
+
+async function getSetting(key, fallback) {
+  const r = await getOne('SELECT setting_value FROM settings WHERE setting_key=?', [key]);
+  return r ? r.setting_value : fallback;
+}
+function _money(v, currency) {
+  const n = parseFloat(v) || 0;
+  if (currency === 'IQD') return Math.round(n).toLocaleString('en-US') + ' IQD';
+  return '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
 
 // List sales
 router.get('/', async (req, res) => {
@@ -178,6 +189,70 @@ router.post('/:id/return', requireRole('admin','manager'), async (req, res) => {
     });
     res.json({ ok: true, ...result });
   } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Invoice PDF download
+router.get('/:id/pdf', async (req, res) => {
+  try {
+    const s = await getOne(`SELECT s.*, c.name AS customer_name, c.phone AS customer_phone,
+      u.name AS cashier_name, br.name AS branch_name, br.address AS branch_address, br.phone AS branch_phone
+      FROM sales s LEFT JOIN customers c ON c.id=s.customer_id
+      LEFT JOIN users u ON u.id=s.user_id LEFT JOIN branches br ON br.id=s.branch_id WHERE s.id=?`, [req.params.id]);
+    if (!s) return res.status(404).json({ error: 'not_found' });
+    const items = await query('SELECT * FROM sale_items WHERE sale_id=?', [req.params.id]);
+    const companyName = await getSetting('company_name', 'Emergent POS');
+    const footer = await getSetting('receipt_footer', '');
+    const currency = s.currency || 'USD';
+    const doc = startPDF(res, `invoice-${s.invoice_no}`, { title: 'Invoice ' + s.invoice_no });
+    pdfHeader(doc, {
+      companyName,
+      subtitle: 'Invoice',
+      title: `Invoice ${s.invoice_no}`,
+      range: `${new Date(s.sale_date).toLocaleString()} · Cashier: ${s.cashier_name || '—'} · ${s.branch_name || ''}`,
+    });
+    // Customer block
+    const margin = 40;
+    doc.fontSize(10).fillColor('#475569');
+    doc.text(`Bill to: ${s.customer_name || 'Walk-in Customer'}`, margin, doc.y);
+    if (s.customer_phone) doc.text(`Phone: ${s.customer_phone}`, margin, doc.y);
+    doc.moveDown(0.5);
+    doc.fillColor('#0f172a');
+    pdfTable(doc, [
+      { key: 'product_name', header: 'Product', weight: 0.50 },
+      { key: 'quantity', header: 'Qty', weight: 0.10, align: 'right' },
+      { key: 'unit_price', header: 'Unit', weight: 0.15, align: 'right' },
+      { key: 'total', header: 'Total', weight: 0.25, align: 'right' },
+    ], items.map(it => ({
+      product_name: it.product_name,
+      quantity: (parseFloat(it.quantity) || 0).toLocaleString(),
+      unit_price: _money(it.unit_price, currency),
+      total: _money(it.total, currency),
+    })));
+    // Totals block
+    doc.moveDown(0.5);
+    const tx = doc.page.width - margin - 220;
+    doc.fontSize(10).fillColor('#475569');
+    const drawRow = (label, val, bold) => {
+      doc.fillColor(bold ? '#0f172a' : '#475569').font(bold ? 'Helvetica-Bold' : 'Helvetica');
+      if (bold) doc.fontSize(13); else doc.fontSize(10);
+      doc.text(label, tx, doc.y, { width: 100, align: 'left', continued: true });
+      doc.text('  ' + val, { width: 120, align: 'right' });
+    };
+    drawRow('Subtotal', _money(s.subtotal, currency));
+    drawRow('Discount', '-' + _money(s.discount_amount, currency));
+    drawRow('Tax', _money(s.tax_amount, currency));
+    drawRow('TOTAL', _money(s.total, currency), true);
+    drawRow('Paid (' + s.payment_method + ')', _money(s.paid_amount, currency));
+    drawRow('Change', _money(s.change_amount, currency));
+    if (footer) {
+      doc.moveDown(2);
+      doc.fontSize(9).font('Helvetica-Oblique').fillColor('#64748b').text(footer, margin, doc.y, { width: doc.page.width - margin * 2, align: 'center' });
+    }
+    doc.end();
+  } catch (e) {
+    console.error('[invoice pdf]', e);
+    res.status(500).json({ error: e.message });
+  }
 });
 
 module.exports = router;

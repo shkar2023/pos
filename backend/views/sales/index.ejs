@@ -1,9 +1,27 @@
 <div class="page-header">
   <h1 class="page-title"><i class="ti ti-receipt"></i><div><%= t('sales.title') %><div class="page-subtitle">All sales invoices</div></div></h1>
   <div class="page-actions">
+    <a id="exp_sales_xlsx" class="btn" data-testid="sales-list-xlsx"><i class="ti ti-file-spreadsheet" style="color:#16a34a"></i> Excel</a>
+    <a id="exp_sales_pdf" class="btn" data-testid="sales-list-pdf"><i class="ti ti-file-type-pdf" style="color:#ef4444"></i> PDF</a>
     <a href="/pos" class="btn btn-primary" data-testid="sales-new"><i class="ti ti-plus"></i> <%= t('dashboard.new_sale') %></a>
   </div>
 </div>
+
+<script>
+function _setSalesExportLinks() {
+  const f = document.getElementById('fromDate')?.value || '';
+  const t = document.getElementById('toDate')?.value || '';
+  const q = new URLSearchParams({from: f, to: t}).toString();
+  const a = document.getElementById('exp_sales_xlsx');
+  const b = document.getElementById('exp_sales_pdf');
+  if (a) { a.href = '/api/reports/sales/export/excel?'+q; a.onclick = (e)=>{e.preventDefault(); window.location=a.href}; }
+  if (b) { b.href = '/api/reports/sales/export/pdf?'+q;   b.onclick = (e)=>{e.preventDefault(); window.location=b.href}; }
+}
+document.addEventListener('DOMContentLoaded', () => {
+  _setSalesExportLinks();
+  ['fromDate','toDate'].forEach(id => document.getElementById(id)?.addEventListener('change', _setSalesExportLinks));
+});
+</script>
 
 <div class="filter-bar">
   <input class="form-control" id="searchInput" placeholder="Invoice #" data-testid="sales-search">
